@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vinayakkam/droplink/internal/app"
 	"github.com/vinayakkam/droplink/internal/config"
 	"github.com/vinayakkam/droplink/internal/server"
 )
@@ -45,6 +46,13 @@ func run(ctx context.Context, args []string, getenv func(string) string,
 	if getenv("GOMEMLIMIT") == "" {
 		debug.SetMemoryLimit(int64(cfg.MemLimitMiB) << 20)
 	}
+
+	providers, err := app.NewProviders(cfg)
+	if err != nil {
+		log.Error("providers", "err", err)
+		return 1
+	}
+	defer providers.Close()
 
 	token, err := newToken()
 	if err != nil {
@@ -75,6 +83,12 @@ func run(ctx context.Context, args []string, getenv func(string) string,
 		}()
 	}
 
+	go func() {
+		if err := providers.Discovery.Run(ctx); err != nil {
+			log.Warn("discovery stopped", "err", err)
+		}
+	}()
+
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 
@@ -84,7 +98,7 @@ func run(ctx context.Context, args []string, getenv func(string) string,
 		Version: version,
 	})
 	fmt.Fprintf(stdout, "%s%s\n", server.ReadyPrefix, ready)
-	log.Info("listening", "addr", ln.Addr().String(), "device", cfg.DeviceName)
+	log.Info("listening", "addr", ln.Addr().String(), "device", cfg.DeviceName, "id", providers.Self.ID)
 
 	select {
 	case err := <-errc:
