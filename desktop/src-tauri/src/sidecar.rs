@@ -111,7 +111,11 @@ impl Sidecar {
         if let Some(mut old) = inner.child.take() {
             let _ = old.start_kill();
         }
-        *inner = Inner { child, ready, error };
+        *inner = Inner {
+            child,
+            ready,
+            error,
+        };
     }
 }
 
@@ -198,4 +202,102 @@ async fn spawn(app: &AppHandle) -> Result<(Child, Ready), String> {
     // Keep draining stdout so the pipe can never fill and block the sidecar.
     tauri::async_runtime::spawn(async move { while let Ok(Some(_)) = lines.next_line().await {} });
     Ok((child, ready))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TOKEN: &str = "69f2340c4763d55c87d4a3bb69627c01f28e6776fad99ba9d6432b494b6ccef4";
+
+    fn line(json: &str) -> String {
+        format!("{READY_PREFIX}{json}")
+    }
+
+    #[test]
+    fn parses_the_go_ready_line() {
+        // Exactly what cmd/droplink-sidecar prints, trailing newline included.
+        let l = line(&format!(
+            r#"{{"port":63020,"token":"{TOKEN}","version":"0.1.0-dev"}}"#
+        )) + "\n";
+        assert_eq!(
+            parse_ready(&l),
+            Some(Ready {
+                port: 63020,
+                token: TOKEN.into(),
+                version: "0.1.0-dev".into()
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_anything_else() {
+        let ok = format!(r#"{{"port":1,"token":"{TOKEN}","version":"v"}}"#);
+        for bad in [
+            String::new(),
+            "time=... level=INFO msg=listening".to_string(),
+            ok.clone(), // missing prefix
+            line("not json"),
+            line(r#"{"port":0,"token":"x","version":"v"}"#), // port 0
+            line(r#"{"port":1,"token":"short","version":"v"}"#),
+            line(r#"{"port":70000,"token":"x","version":"v"}"#), // not a u16
+            format!("  junk {}", line(&ok)),                     // prefix not at start
+        ] {
+            assert_eq!(parse_ready(&bad), None, "accepted {bad:?}");
+        }
+    }
+
+    #[test]
+    fn info_reflects_state() {
+        let s = Sidecar::default();
+        assert_eq!(s.info().state, "starting");
+
+        s.set(None, None, Some("boom".into()));
+        let info = s.info();
+        assert_eq!(
+            (info.state, info.error.as_deref()),
+            ("failed", Some("boom"))
+        );
+
+        s.set(
+            None,
+            Some(Ready {
+                port: 9,
+                token: TOKEN.into(),
+                version: "1".into(),
+            }),
+            None,
+        );
+        let info = s.info();
+        assert_eq!((info.state, info.port), ("ready", Some(9)));
+
+        s.stop();
+        assert_eq!(s.info().state, "starting");
+    }
+
+    #[test]
+    fn info_serializes_camel_case_for_the_ui() {
+        let s = Sidecar::default();
+        s.set(
+            None,
+            Some(Ready {
+                port: 9,
+                token: TOKEN.into(),
+                version: "1".into(),
+            }),
+            None,
+        );
+        let v = serde_json::to_value(s.info()).unwrap();
+        assert_eq!(v["state"], "ready");
+        assert_eq!(v["port"], 9);
+        assert_eq!(v["token"], TOKEN);
+    }
+
+    #[test]
+    fn binary_sits_next_to_the_app() {
+        let p = binary_path().unwrap();
+        let name = p.file_name().unwrap().to_string_lossy();
+        assert!(name.starts_with("droplink-sidecar"));
+        assert_eq!(p.parent(), std::env::current_exe().unwrap().parent());
+    }
 }

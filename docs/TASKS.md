@@ -30,7 +30,7 @@ Two people, six branches each. Every branch is **4 feature commits + 1 test comm
 ## Status
 | Branch | State |
 |---|---|
-| `p1/scaffold` | in progress |
+| `p1/scaffold` | done, not merged |
 | everything else | not started |
 
 ## Ownership
