@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./desktop/src-tauri/target/**)",
+      "Read(./desktop/node_modules/**)",
+      "Read(./desktop/src-tauri/binaries/**)",
+      "Read(./desktop/src-tauri/icons/**)",
+      "Read(./desktop/src-tauri/gen/**)"
+    ]
+  }
+}

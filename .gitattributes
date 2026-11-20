@@ -1,0 +1,6 @@
+# Keep LF everywhere so gofmt, rustfmt and diffs agree on Windows too.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary

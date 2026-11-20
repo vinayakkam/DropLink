@@ -1,0 +1,74 @@
+# Cross-platform task runner: https://taskfile.dev
+# Install: go install github.com/go-task/task/v3/cmd/task@latest
+version: "3"
+
+tasks:
+  default:
+    desc: List tasks
+    cmds:
+      - task --list
+    silent: true
+
+  sidecar:
+    desc: Build the Go sidecar where Tauri bundles it from
+    cmds:
+      - go run ./tools/buildsidecar
+
+  icon:
+    desc: Redraw the pixel app icon and regenerate the icon set
+    cmds:
+      - go run ./tools/genicon
+      - npx --prefix desktop tauri icon desktop/app-icon.png
+
+  deps:
+    desc: Install the desktop app's dev dependencies (Tauri CLI)
+    dir: desktop
+    cmds:
+      - npm install --no-fund --no-audit
+    status:
+      - test -d node_modules/@tauri-apps/cli
+
+  dev:
+    desc: Run the desktop app with the freshly built sidecar
+    deps: [sidecar, deps]
+    dir: desktop
+    cmds:
+      - npm run dev
+
+  web:
+    desc: Sidecar serving web/ on http://127.0.0.1:7878 for browser development
+    cmds:
+      - go run ./cmd/droplink-sidecar -web-dir web -addr 127.0.0.1:7878 -name dev-browser
+
+  build:
+    desc: Release build and installers
+    deps: [sidecar, deps]
+    dir: desktop
+    cmds:
+      - npm run build
+
+  test:go:
+    desc: Go tests (race detector off on Windows without cgo)
+    cmds:
+      - go test ./...
+
+  test:rust:
+    desc: Rust tests for the desktop shell
+    deps: [sidecar]
+    cmds:
+      - cargo test --quiet --manifest-path desktop/src-tauri/Cargo.toml
+
+  test:
+    desc: All tests
+    cmds:
+      - task: test:go
+      - task: test:rust
+
+  check:
+    desc: Format, vet, static analysis and all tests (short output)
+    cmds:
+      - go run ./tools/gofmtcheck
+      - go vet ./...
+      # go install honnef.co/go/tools/cmd/staticcheck@latest
+      - staticcheck ./...
+      - task: test

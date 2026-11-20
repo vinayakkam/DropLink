@@ -1,0 +1,14 @@
+{
+  "name": "droplink-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DropLink desktop shell: a Tauri 2 window around the pixel UI and the Go sidecar",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

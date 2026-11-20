@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DropLink</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #05070d; color: #9fe9ff; }
+    body { display: grid; place-items: center; font: 14px/1.5 ui-monospace, Consolas, monospace; }
+    #status[data-state="ready"] { color: #3ef2ff; }
+    #status[data-state="failed"] { color: #ff3ea5; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>DROPLINK</h1>
+    <p id="status" data-state="starting">ENGINE: STARTING…</p>
+  </main>
+  <script type="module" src="js/boot.js"></script>
+</body>
+</html>
