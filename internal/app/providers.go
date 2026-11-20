@@ -24,6 +24,8 @@ type Providers struct {
 	LAN       contract.Transport
 	WebRTC    contract.Transport
 	Signaler  contract.Signaler
+	Router    contract.Router
+	History   contract.History
 }
 
 // NewProviders builds the implementations for this run.
@@ -36,7 +38,7 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 	webrtcSelf := self
 	webrtcSelf.Route = contract.RouteWebRTC
 
-	return &Providers{
+	p := &Providers{
 		Self:   self,
 		Crypto: crypto,
 		// p2/lan-discovery replaces this line.
@@ -47,7 +49,12 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 		WebRTC: network.Join(webrtcSelf, contract.RouteWebRTC),
 		// p2/signaling replaces this line.
 		Signaler: mock.NewHub(),
-	}, nil
+		// p2/resilience replaces this line (history file in cfg.DataDir).
+		History: &mock.History{},
+	}
+	// p2/resilience replaces this line.
+	p.Router = &mock.Router{Transports: []contract.Transport{p.LAN, p.WebRTC}}
+	return p, nil
 }
 
 // Close releases the transports.

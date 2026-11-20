@@ -217,11 +217,43 @@ type Source interface {
 
 // Sink stores received files. Open returns a writer positioned after the
 // bytes already on disk (have), so an interrupted transfer resumes there.
+// When have > 0 the writer must also implement io.ReaderAt, so the engine
+// can hash the bytes it already has; otherwise the engine restarts the file.
 // Commit is called once the file's hash matched, Abort when it did not.
 type Sink interface {
 	Open(f FileMeta) (w io.WriteCloser, have int64, err error)
 	Commit(f FileMeta) error
 	Abort(f FileMeta, cause error) error
+}
+
+// ---- Routing and history (p2/resilience) -----------------------------------
+
+// Router picks how to reach a peer (LAN first, then WebRTC, then relay)
+// and retries with backoff. The transfer manager dials only through it.
+type Router interface {
+	Dial(ctx context.Context, to Peer) (Stream, error)
+}
+
+// Record is one finished transfer in the local history. It never holds
+// file contents, only names and sizes.
+type Record struct {
+	ID        TransferID    `json:"id"`
+	Peer      Peer          `json:"peer"`
+	Outgoing  bool          `json:"outgoing"`
+	Files     []FileMeta    `json:"files"`
+	Text      bool          `json:"text"` // clipboard share; the text itself is not kept
+	State     TransferState `json:"state"`
+	Bytes     int64         `json:"bytes"`
+	StartedAt time.Time     `json:"startedAt"`
+	EndedAt   time.Time     `json:"endedAt"`
+}
+
+// History is the opt-in local transfer log, capped in size.
+type History interface {
+	Append(r Record) error
+	// List returns up to limit records, newest first.
+	List(limit int) ([]Record, error)
+	Clear() error
 }
 
 // Engine moves an Offer's files over a Stream.

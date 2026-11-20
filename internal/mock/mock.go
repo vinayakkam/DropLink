@@ -16,4 +16,6 @@ var (
 	_ contract.Stream     = (*stream)(nil)
 	_ contract.Signaler   = (*Hub)(nil)
 	_ contract.Room       = (*room)(nil)
+	_ contract.Router     = (*Router)(nil)
+	_ contract.History    = (*History)(nil)
 )
