@@ -1,0 +1,33 @@
+[package]
+name = "droplink"
+version = "0.1.0"
+description = "DropLink desktop shell"
+license = "MIT"
+edition = "2021"
+rust-version = "1.77"
+
+# A library so main.rs stays a three-line wrapper and the sidecar code is
+# unit-testable without starting a window.
+[lib]
+name = "droplink_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# System webview only (WebView2 / WebKit): no bundled Chromium.
+tauri = { version = "2", features = [] }
+# A second launch focuses the open window instead of starting a second sidecar.
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The sidecar runs as an async child process; its stdout carries the ready line.
+tokio = { version = "1", features = ["process", "io-util", "sync", "time"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
