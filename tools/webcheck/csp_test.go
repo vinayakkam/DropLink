@@ -1,4 +1,4 @@
-package web
+package webcheck
 
 import (
 	"io/fs"
@@ -22,11 +22,12 @@ var (
 func uiFiles(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{}
-	err := filepath.WalkDir(".", func(p string, d fs.DirEntry, err error) error {
+	root := filepath.Join("..", "..", "web")
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (p == "tests" || (p != "." && strings.HasPrefix(d.Name(), "."))) {
+		if d.IsDir() && (d.Name() == "tests" || (p != root && strings.HasPrefix(d.Name(), "."))) {
 			return filepath.SkipDir
 		}
 		switch filepath.Ext(p) {
@@ -35,7 +36,8 @@ func uiFiles(t *testing.T) map[string]string {
 			if err != nil {
 				return err
 			}
-			out[filepath.ToSlash(p)] = string(b)
+			rel, _ := filepath.Rel(root, p)
+			out[filepath.ToSlash(rel)] = string(b)
 		}
 		return nil
 	})
@@ -77,8 +79,17 @@ func TestNoInlineScriptsOrHandlers(t *testing.T) {
 
 func TestFontLicenseShipsWithFont(t *testing.T) {
 	for _, f := range []string{"fonts/monocraft.woff2", "fonts/MONOCRAFT-OFL.txt"} {
-		if _, err := os.Stat(f); err != nil {
+		if _, err := os.Stat(filepath.Join("..", "..", "web", f)); err != nil {
 			t.Errorf("%s missing: %v", f, err)
 		}
+	}
+}
+
+// Tauri bundles all of web/; a Go file there ends up in the build output
+// under desktop/, where go vet ./... trips over it.
+func TestNoGoFilesInWeb(t *testing.T) {
+	matches, _ := filepath.Glob(filepath.Join("..", "..", "web", "*.go"))
+	if len(matches) > 0 {
+		t.Errorf("Go files in web/: %v", matches)
 	}
 }
