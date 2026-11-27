@@ -6,9 +6,11 @@
   <title>DropLink</title>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/crt.css">
 </head>
 <body>
+<div class="app">
   <header class="titlebar" data-tauri-drag-region>
     <span class="titlebar__mark" aria-hidden="true"></span>
     <span class="titlebar__name glow" data-tauri-drag-region>DROPLINK</span>
@@ -21,12 +23,91 @@
     </nav>
   </header>
 
-  <main class="panel" style="margin: 48px auto; max-width: 420px">
-    <div class="panel__label">DROPLINK <small>v0.1</small></div>
-    <p id="status" class="muted glow" data-state="starting">ENGINE: STARTING…</p>
-  </main>
+  <nav class="tabs" aria-label="Sections">
+    <a class="tab" href="#/" data-tab="home">RADAR</a>
+    <a class="tab" href="#/rooms" data-tab="rooms">ROOMS</a>
+    <a class="tab" href="#/history" data-tab="history">LOG</a>
+    <a class="tab" href="#/settings" data-tab="settings">CONFIG</a>
+  </nav>
 
-  <div class="crt" aria-hidden="true"></div>
-  <script type="module" src="js/boot.js"></script>
+  <div class="views">
+    <section class="view view--home" data-view="home">
+      <aside class="panel radar" aria-label="Radar">
+        <div class="panel__label">RADAR <small id="peer-count">0 CONTACTS</small></div>
+        <div class="radar__scope" id="radar-scope">
+          <canvas id="radar-canvas" aria-hidden="true"></canvas>
+        </div>
+        <ul class="list peers" id="peer-list" aria-label="Nearby devices">
+          <li class="list__empty">SCANNING FOR CONTACTS…</li>
+        </ul>
+      </aside>
+
+      <section class="panel bay" aria-label="Docking bay">
+        <div class="panel__label">DOCKING BAY <small id="bay-target">NO TARGET</small></div>
+        <div class="bay__zone" id="dropzone" tabindex="0">
+          <canvas id="bay-canvas" aria-hidden="true"></canvas>
+          <div class="bay__prompt">
+            <p class="bay__title glow">DROP CARGO HERE</p>
+            <p class="muted">files or folders · select contacts on the radar</p>
+            <div class="bay__actions">
+              <button class="btn btn--ghost" id="pick-files">PICK FILES</button>
+              <button class="btn btn--ghost" id="pick-folder">PICK FOLDER</button>
+              <button class="btn btn--ghost" id="send-clip">SEND CLIPBOARD</button>
+            </div>
+          </div>
+        </div>
+        <div class="bay__manifest" id="manifest" hidden>
+          <span id="manifest-text"></span>
+          <button class="btn" id="launch">LAUNCH</button>
+          <button class="btn btn--ghost" id="manifest-clear">CLEAR</button>
+        </div>
+      </section>
+
+      <aside class="panel log" aria-label="Cargo log">
+        <div class="panel__label">CARGO LOG <small id="xfer-count">IDLE</small></div>
+        <ul class="list transfers" id="transfers">
+          <li class="list__empty">NO CARGO IN FLIGHT</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="view" data-view="rooms" hidden>
+      <div class="panel page">
+        <div class="panel__label">ROOMS <small>ACROSS NETWORKS</small></div>
+        <div id="rooms-body" class="page__body"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="history" hidden>
+      <div class="panel page">
+        <div class="panel__label">FLIGHT LOG <small>LOCAL ONLY</small></div>
+        <div id="history-body" class="page__body"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="settings" hidden>
+      <div class="panel page">
+        <div class="panel__label">CONFIG <small>THIS DEVICE</small></div>
+        <div id="settings-body" class="page__body"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="statusbar" aria-live="polite">
+    <span class="statusbar__item"><span class="led" id="engine-led"></span><span id="engine-state">ENGINE STARTING</span></span>
+    <span class="statusbar__item" id="route-state">ROUTE —</span>
+    <span class="statusbar__item" id="speed-up">▲ 0 B/s</span>
+    <span class="statusbar__item" id="speed-down">▼ 0 B/s</span>
+    <span class="statusbar__spacer"></span>
+    <span class="statusbar__item faint" id="version">v—</span>
+  </footer>
+</div>
+
+<div class="boot" id="boot" role="status">
+  <pre class="boot__log glow" id="boot-log"></pre>
+</div>
+
+<div class="crt" aria-hidden="true"></div>
+<script type="module" src="js/boot.js"></script>
 </body>
 </html>
