@@ -48,7 +48,7 @@ mountScenes(document, store);
 export const home = mountHome(document, store, { sfx });
 const pagesOpts = { sfx, applySettings: applyAppearance };
 export const pages = mountPages(document, store, pagesOpts);
-const desktop = initDesktop(store, { setPickers, setCargo: home.setCargo, pagesOpts });
+const desktop = initDesktop(store, { setPickers, setCargo: home.setCargo, pagesOpts, joinRoom: (code) => pages.joinRoom(code) });
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });

@@ -57,7 +57,7 @@ export function dropAction(payload) {
 
 /**
  * @param {ReturnType<typeof import("./store.js").createStore>} store
- * @param {{ setPickers?: (p: any) => void, setCargo?: (c: any) => void, pagesOpts?: any }} [ui]
+ * @param {{ setPickers?: (p: any) => void, setCargo?: (c: any) => void, pagesOpts?: any, joinRoom?: (code: string) => Promise<void> }} [ui]
  */
 export function initDesktop(store, ui = {}) {
   const T = tauri();
@@ -85,6 +85,14 @@ export function initDesktop(store, ui = {}) {
       if (store.get().route.view !== "home") globalThis.location.hash = "#/";
       ui.setCargo?.({ paths: a.paths });
     }
+  });
+
+  // droplink://join/<CODE>: one that started the app, then any later ones.
+  const joinFromLink = (code) => code && ui.joinRoom?.(code);
+  T.core.invoke("take_pending_join").then(joinFromLink).catch(() => {});
+  T.event?.listen("deep-link-join", (e) => {
+    T.core.invoke("take_pending_join").catch(() => {}); // consumed here
+    joinFromLink(e.payload);
   });
 
   // Settings the shell needs: close-to-tray and the tray's check mark.

@@ -55,6 +55,7 @@ func Register(srv *server.Server, d Deps) {
 		srv.Handle("POST /api/rooms", "rooms", http.HandlerFunc(h.createRoom))
 		srv.Handle("POST /api/rooms/{code}/join", "rooms", http.HandlerFunc(h.joinRoom))
 		srv.Handle("DELETE /api/rooms/current", "rooms", http.HandlerFunc(h.leaveRoom))
+		registerQR(srv)
 	}
 }
 

@@ -8,6 +8,7 @@ require (
 	github.com/pion/datachannel v1.6.4
 	github.com/pion/webrtc/v4 v4.2.29
 	golang.org/x/crypto v0.59.0
+	rsc.io/qr v0.2.0
 )
 
 require (

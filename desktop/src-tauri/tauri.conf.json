@@ -56,5 +56,14 @@
         "displayLanguageSelector": false
       }
     }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "droplink"
+        ]
+      }
+    }
   }
 }
