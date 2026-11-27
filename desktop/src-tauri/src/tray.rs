@@ -79,9 +79,19 @@ fn window_visible(app: &AppHandle) -> bool {
 /// Builds the tray icon and its menu.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", toggle_label(true), true, None::<&str>)?;
-    let auto = CheckMenuItem::with_id(app, "auto_accept", "Auto-accept trusted devices", true, false, None::<&str>)?;
+    let auto = CheckMenuItem::with_id(
+        app,
+        "auto_accept",
+        "Auto-accept trusted devices",
+        true,
+        false,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit DropLink", true, None::<&str>)?;
-    let menu: Menu<Wry> = Menu::with_items(app, &[&toggle, &auto, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu: Menu<Wry> = Menu::with_items(
+        app,
+        &[&toggle, &auto, &PredefinedMenuItem::separator(app)?, &quit],
+    )?;
 
     let (toggle_item, auto_item) = (toggle.clone(), auto.clone());
     TrayIconBuilder::with_id("droplink")
@@ -105,7 +115,12 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 set_visible(tray.app_handle(), true);
             }
         })
@@ -129,5 +144,33 @@ pub fn sync_window_settings(app: AppHandle, close_to_tray: bool, auto_accept: bo
     b.set_auto_accept(auto_accept);
     if let Some(items) = app.try_state::<TrayItems>() {
         let _ = items.auto.set_checked(auto_accept);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toggle_label_follows_visibility() {
+        assert_eq!(toggle_label(true), "Hide DropLink");
+        assert_eq!(toggle_label(false), "Show DropLink");
+    }
+
+    #[test]
+    fn close_button_hides_only_with_close_to_tray() {
+        assert_eq!(on_close(true), OnClose::Hide);
+        assert_eq!(on_close(false), OnClose::Quit);
+    }
+
+    #[test]
+    fn behavior_defaults_off_and_updates() {
+        let b = Behavior::default();
+        assert!(!b.close_to_tray() && !b.auto_accept());
+        b.set_close_to_tray(true);
+        b.set_auto_accept(true);
+        assert!(b.close_to_tray() && b.auto_accept());
+        b.set_close_to_tray(false);
+        assert!(!b.close_to_tray() && b.auto_accept());
     }
 }

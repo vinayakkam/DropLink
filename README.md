@@ -140,6 +140,18 @@ Sidecar flags (environment variables in brackets):
 
 Run `task mem` while the app is open to see what it uses on your machine: it lists the shell, the sidecar and the WebView processes the shell started, with working set (RAM in use) and private bytes.
 
+Recorded on Windows 11 with the release build, idle on the radar 8 s after launch (`task mem`, 2026-11-27):
+
+| Process | Working set | Private bytes |
+|---|---|---|
+| `droplink.exe` (Rust shell) | 29.2 MiB | 5.4 MiB |
+| `droplink-sidecar.exe` (Go engine) | 54.9 MiB | 47.9 MiB |
+| `msedgewebview2.exe` × 6 (the UI) | 354.0 MiB | 277.7 MiB |
+| `conhost.exe` | 7.5 MiB | 1.2 MiB |
+| **Total** | **445.6 MiB** | **332.2 MiB** |
+
+The WebView is most of it. Its working set includes pages shared with every other WebView2 app on the machine, so it overstates what DropLink alone adds; one renderer's 181 MiB of private memory is the canvas and GPU work and the obvious next thing to trim (smaller backing stores, fewer layers). The Go engine stays inside its 64 MiB soft limit.
+
 How it stays small:
 - Files are never read whole: one 64 KiB buffer per transfer, reused from a pool; a 256 MiB transfer keeps the Go heap under 8 MiB (tested).
 - Encryption and compression work in place: 0 allocations per record.

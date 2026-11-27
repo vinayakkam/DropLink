@@ -13,7 +13,10 @@ const ALPHABET: &str = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 /// Accepts any case and a trailing slash or query.
 pub fn parse_join(url: &str) -> Option<String> {
     let url = url.trim();
-    let rest = url.get(..16).filter(|p| p.eq_ignore_ascii_case("droplink://join/")).map(|_| &url[16..])?;
+    let rest = url
+        .get(..16)
+        .filter(|p| p.eq_ignore_ascii_case("droplink://join/"))
+        .map(|_| &url[16..])?;
     let code: String = rest
         .split(|c| c == '/' || c == '?' || c == '#')
         .next()?
@@ -35,7 +38,10 @@ fn handle(app: &AppHandle, urls: impl IntoIterator<Item = String>) {
     for url in urls {
         if let Some(code) = parse_join(&url) {
             crate::tray::set_visible(app, true);
-            *app.state::<PendingJoin>().0.lock().unwrap_or_else(|e| e.into_inner()) = Some(code.clone());
+            *app.state::<PendingJoin>()
+                .0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(code.clone());
             let _ = app.emit("deep-link-join", code);
         }
     }
@@ -57,4 +63,41 @@ pub fn install(app: &AppHandle) {
     app.deep_link().on_open_url(move |event| {
         handle(&h, event.urls().into_iter().map(|u| u.to_string()));
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_join;
+
+    #[test]
+    fn accepts_join_links() {
+        assert_eq!(parse_join("droplink://join/ABC234"), Some("ABC234".into()));
+        assert_eq!(parse_join("DROPLINK://JOIN/abc234/"), Some("ABC234".into()));
+        assert_eq!(
+            parse_join("  droplink://join/ZCWWBU?from=qr "),
+            Some("ZCWWBU".into())
+        );
+        assert_eq!(
+            parse_join("droplink://join/7da94p#x"),
+            Some("7DA94P".into())
+        );
+    }
+
+    #[test]
+    fn rejects_everything_else() {
+        for bad in [
+            "",
+            "droplink://join/",
+            "droplink://join/ABC23",   // too short
+            "droplink://join/ABC2345", // too long
+            "droplink://join/ABC2O4",  // O is not in the alphabet
+            "droplink://join/AB C24",
+            "droplink://send/ABC234",
+            "https://join/ABC234",
+            "droplink:/join/ABC234",
+            "droplink://join/ÄBC234",
+        ] {
+            assert_eq!(parse_join(bad), None, "accepted {bad:?}");
+        }
+    }
 }

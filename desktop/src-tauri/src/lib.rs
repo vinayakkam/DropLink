@@ -58,7 +58,9 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
-                if tray::on_close(app.state::<tray::Behavior>().close_to_tray()) == tray::OnClose::Hide {
+                if tray::on_close(app.state::<tray::Behavior>().close_to_tray())
+                    == tray::OnClose::Hide
+                {
                     // Keep receiving in the background; the tray brings it back.
                     api.prevent_close();
                     let _ = window.hide();
