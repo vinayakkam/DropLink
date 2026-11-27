@@ -134,7 +134,8 @@ A tampered or unsigned installer is never run, and the UI cannot point the shell
 - `droplink-<version>-linux-amd64.deb` for Debian, Ubuntu, Mint, Pop!_OS: `sudo apt install ./droplink-*.deb`
 - `droplink-<version>-linux-amd64.rpm` for Fedora, RHEL, openSUSE: `sudo dnf install ./droplink-*.rpm` (or `zypper install`)
 - `droplink-<version>-linux-amd64.AppImage` for any distro: `chmod +x`, then run it (Arch needs `fuse2`)
-- `droplink-bin.PKGBUILD` and `droplink-bin.SRCINFO` for Arch and Manjaro: save the first as `PKGBUILD` in an empty folder and run `makepkg -si`. The same two files, renamed `PKGBUILD` and `.SRCINFO`, are what goes into the AUR package `droplink-bin`.
+- `droplink-bin-<version>-1-x86_64.pkg.tar.zst` for Arch, Manjaro, EndeavourOS: `sudo pacman -U ./droplink-bin-*.pkg.tar.zst`
+- `droplink-bin.PKGBUILD` and `droplink-bin.SRCINFO`, the recipe behind that package: to build it yourself, save the first as `PKGBUILD` in an empty folder and run `makepkg -si`. The same two files, renamed `PKGBUILD` and `.SRCINFO`, are what goes into the AUR package `droplink-bin`.
 
 Self-update is Windows-only for now: on Linux, install each new release yourself.
 

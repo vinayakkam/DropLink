@@ -79,6 +79,7 @@ func TestReleaseWorkflow(t *testing.T) {
 		"--bundles deb,rpm,appimage",
 		"container: archlinux:latest",
 		"makepkg --nodeps",
+		"pkg.tar.zst out/",
 		"needs: [windows, linux, arch]",
 		"gh release upload",
 		`rm -f "$key"`,
