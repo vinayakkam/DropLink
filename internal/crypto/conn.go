@@ -40,11 +40,13 @@ type Conn struct {
 	rbuf    []byte // one ciphertext record
 	pending []byte // decrypted bytes not yet returned (slice of rbuf)
 	rerr    error  // sticky: after a bad record the stream is dead
+	rnonce  [chacha20poly1305.NonceSize]byte
 
-	wmu   sync.Mutex
-	waead cipher.AEAD
-	wseq  uint64
-	wbuf  []byte
+	wmu    sync.Mutex
+	waead  cipher.AEAD
+	wseq   uint64
+	wbuf   []byte
+	wnonce [chacha20poly1305.NonceSize]byte // kept here so it never escapes per call
 }
 
 var _ contract.SecureConn = (*Conn)(nil)
@@ -80,7 +82,6 @@ func nonce(dst *[chacha20poly1305.NonceSize]byte, seq uint64) []byte {
 func (c *Conn) Write(p []byte) (int, error) {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	var nb [chacha20poly1305.NonceSize]byte
 	written := 0
 	for len(p) > 0 {
 		if c.wseq == ^uint64(0) {
@@ -89,7 +90,7 @@ func (c *Conn) Write(p []byte) (int, error) {
 		n := min(len(p), MaxRecord)
 		body := c.wbuf[recHeader : recHeader+n]
 		copy(body, p[:n])
-		ct := c.waead.Seal(body[:0], nonce(&nb, c.wseq), body, nil)
+		ct := c.waead.Seal(body[:0], nonce(&c.wnonce, c.wseq), body, nil)
 		c.wseq++
 		binary.BigEndian.PutUint16(c.wbuf[:recHeader], uint16(len(ct)))
 		if _, err := c.Conn.Write(c.wbuf[:recHeader+len(ct)]); err != nil {
@@ -132,8 +133,7 @@ func (c *Conn) readRecord() error {
 		if _, err := readFull(c.Conn, ct); err != nil {
 			return err
 		}
-		var nb [chacha20poly1305.NonceSize]byte
-		pt, err := c.raead.Open(ct[:0], nonce(&nb, c.rseq), ct, nil)
+		pt, err := c.raead.Open(ct[:0], nonce(&c.rnonce, c.rseq), ct, nil)
 		if err != nil {
 			c.rerr = ErrRecord
 			return c.rerr
