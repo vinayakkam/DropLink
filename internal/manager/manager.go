@@ -601,6 +601,9 @@ func (m *Manager) emitTransfer(tr *transfer) {
 	m.events.emit(Event{Type: "transfer", Transfer: &v})
 }
 
+// Emit sends an event to every subscriber (the API's update progress).
+func (m *Manager) Emit(e Event) { m.events.emit(e) }
+
 // EmitRoom tells the UI the room changed (the API calls it).
 func (m *Manager) EmitRoom(code string, members []contract.Peer) {
 	m.events.emit(Event{Type: "room", Room: &Room{Code: code, Members: members}})

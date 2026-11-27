@@ -45,8 +45,27 @@ tasks:
     cmds:
       - go run ./tools/mem {{.CLI_ARGS}}
 
+  installer:
+    desc: Release app + Windows installer (Inno Setup) into dist/
+    deps: [deps]
+    cmds:
+      - go run ./tools/release build
+
+  installer-art:
+    desc: Redraw the installer's pixel art (packaging/windows/art)
+    cmds:
+      - go run ./tools/installerart
+
+  release:
+    desc: Build, sign and publish a GitHub release (asks before publishing)
+    deps: [deps]
+    cmds:
+      - go run ./tools/release build
+      - go run ./tools/release sign -notes "{{.CLI_ARGS}}"
+      - go run ./tools/release publish
+
   build:
-    desc: Release build and installers
+    desc: Release bundles for Linux (deb, AppImage) and macOS (dmg); on Windows use task installer
     deps: [sidecar, deps]
     dir: desktop
     cmds:

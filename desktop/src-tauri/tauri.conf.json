@@ -30,8 +30,6 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis",
-      "msi",
       "deb",
       "appimage",
       "dmg"
@@ -49,13 +47,7 @@
     "category": "Utility",
     "shortDescription": "Peer-to-peer file transfer over LAN or WebRTC",
     "longDescription": "DropLink sends files straight between devices, over the local network or WebRTC. No server stores anything.",
-    "license": "MIT",
-    "windows": {
-      "nsis": {
-        "installMode": "currentUser",
-        "displayLanguageSelector": false
-      }
-    }
+    "license": "MIT"
   },
   "plugins": {
     "deep-link": {

@@ -114,6 +114,7 @@ type Event struct {
 	Transfer  *View           `json:"transfer,omitempty"`
 	Transfers []View          `json:"transfers,omitempty"`
 	Room      *Room           `json:"room,omitempty"`
+	Update    any             `json:"update,omitempty"` // self-update progress (internal/api)
 }
 
 // hub fans events out to subscribers without ever blocking a transfer.

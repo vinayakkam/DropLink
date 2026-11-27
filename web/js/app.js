@@ -12,6 +12,7 @@ import { createSfx } from "./sfx.js";
 import { applyAppearance } from "./theme.js";
 import { mountHome, setPickers } from "./ui/home.js";
 import { mountPages } from "./ui/pages.js";
+import { initUpdates } from "./ui/update.js";
 import { showView, watchRoute } from "./views.js";
 
 export const store = createStore({
@@ -48,6 +49,8 @@ mountScenes(document, store);
 export const home = mountHome(document, store, { sfx });
 const pagesOpts = { sfx, applySettings: applyAppearance };
 export const pages = mountPages(document, store, pagesOpts);
+const updates = initUpdates(store, { sfx });
+pagesOpts.checkUpdates = () => updates.check();
 const desktop = initDesktop(store, { setPickers, setCargo: home.setCargo, pagesOpts, joinRoom: (code) => pages.joinRoom(code) });
 
 const bootEl = document.getElementById("boot");
@@ -60,6 +63,7 @@ try {
   await connectEvents(store, {
     onEvent: (ev) => {
       desktop.onEvent(ev);
+      updates.onEvent(ev);
       const t = ev.transfer;
       if (ev.type !== "transfer" || !t) return;
       if (t.state === "done" && !t.outgoing) sfx("done");

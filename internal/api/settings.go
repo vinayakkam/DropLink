@@ -26,6 +26,7 @@ type Settings struct {
 	Motion            bool   `json:"motion"`         // animations on
 	History           bool   `json:"history"`        // keep a local log
 	CloseToTray       bool   `json:"closeToTray"`
+	AutoUpdate        bool   `json:"autoUpdate"` // check for a new version at start
 }
 
 // Themes the UI ships.
@@ -44,6 +45,7 @@ func DefaultSettings(name string) Settings {
 		Volume:            40,
 		Theme:             "cyan",
 		Motion:            true,
+		AutoUpdate:        true,
 	}
 }
 

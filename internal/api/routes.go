@@ -27,7 +27,8 @@ type Deps struct {
 	Crypto   contract.Crypto
 	History  contract.History
 	Settings *SettingsStore
-	Rooms    Roomer // nil: no rooms feature
+	Rooms    Roomer   // nil: no rooms feature
+	Updater  *Updater // nil: no self-update
 	// Heartbeat for the event stream (15 s).
 	Heartbeat time.Duration
 }
@@ -50,6 +51,9 @@ func Register(srv *server.Server, d Deps) {
 	srv.Handle("PUT /api/settings", "settings", http.HandlerFunc(h.putSettings))
 	srv.Handle("GET /api/history", "history", http.HandlerFunc(h.listHistory))
 	srv.Handle("DELETE /api/history", "history", http.HandlerFunc(h.clearHistory))
+	if d.Updater != nil {
+		registerUpdate(srv, d.Updater)
+	}
 	if d.Rooms != nil {
 		srv.Handle("GET /api/rooms", "rooms", http.HandlerFunc(h.room))
 		srv.Handle("POST /api/rooms", "rooms", http.HandlerFunc(h.createRoom))

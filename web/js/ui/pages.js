@@ -230,6 +230,11 @@ export function mountPages(doc, store, opts) {
       toggle("motion", "ANIMATION", "Off: nothing moves (also follows the OS reduced-motion setting)."),
       h("div", { class: "field" }, h("span", { class: "field__label" }, "SOUND"), vol, h("span", { class: "field__hint" }, "Chiptune blips; 0 = silent.")),
       globalThis.__TAURI__ ? toggle("closeToTray", "CLOSE TO TRAY", "Keep receiving after the window closes.") : null,
+      h("h3", { class: "section" }, "UPDATES"),
+      toggle("autoUpdate", "CHECK AT START", "Look for a new signed release when DropLink starts."),
+      opts.checkUpdates
+        ? h("div", { class: "field" }, h("span", { class: "field__label" }, "VERSION"), h("div", { class: "row" }, h("span", null, `v${store.get().engine.version}`), h("button", { class: "btn btn--ghost", onclick: () => opts.checkUpdates() }, "CHECK NOW")))
+        : null,
       h("h3", { class: "section" }, "TRUSTED DEVICES"),
       trustList,
     );
