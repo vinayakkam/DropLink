@@ -161,7 +161,8 @@ func readFull(c net.Conn, b []byte) (int, error) {
 
 // Crypto implements contract.Crypto for this device.
 type Crypto struct {
-	id *Identity
+	id    *Identity
+	trust *trustStore
 	// HandshakeTimeout bounds Secure when ctx has no deadline, so a
 	// silent peer cannot hold a goroutine forever.
 	HandshakeTimeout time.Duration
