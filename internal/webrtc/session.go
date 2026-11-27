@@ -67,8 +67,10 @@ type Transport struct {
 	// accepted receives each connection the other side opened.
 	accepted func(pc *pion.PeerConnection, dc *pion.DataChannel, from contract.DeviceID)
 
-	done chan struct{}
-	wg   sync.WaitGroup
+	incoming  chan contract.Stream
+	done      chan struct{}
+	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 // New returns a Transport that signals through sig.
@@ -87,7 +89,7 @@ func New(self contract.Peer, sig contract.Signaler, opts Options) *Transport {
 		streams:  map[*stream]struct{}{},
 		done:     make(chan struct{}),
 	}
-	t.accepted = func(pc *pion.PeerConnection, _ *pion.DataChannel, _ contract.DeviceID) { _ = pc.Close() }
+	t.startAccepting()
 	return t
 }
 
