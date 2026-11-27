@@ -1,0 +1,72 @@
+/* DropLink design tokens. Every color in the UI comes from here; themes
+   (p1/ui-features) only redefine these variables. Spacing is a 4 px grid
+   so pixel art and text line up. */
+
+@font-face {
+  font-family: "Monocraft";
+  src: url("../fonts/monocraft.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  /* Surfaces: deep space, layered. */
+  --void: #05070d;
+  --void-2: #0a0f1c;
+  --panel: #0d1424;
+  --panel-2: #121c31;
+  --panel-edge: #1d2b48;
+  --grid: #16233b;
+
+  /* Signal colors. */
+  --cyan: #3ef2ff;
+  --cyan-dim: #138a9e;
+  --cyan-deep: #0b4a5a;
+  --magenta: #ff3ea5;
+  --magenta-dim: #8f1f60;
+  --amber: #ffb63e;
+  --amber-dim: #8a5a12;
+  --lime: #7dff6a;
+  --danger: #ff5a5a;
+
+  /* Text. */
+  --ink: #d8f6ff;
+  --ink-dim: #7fa3b8;
+  --ink-faint: #4a6378;
+
+  /* Accent used by focus rings, links and the active tab. */
+  --accent: var(--cyan);
+  --accent-dim: var(--cyan-dim);
+  --accent-glow: rgba(62, 242, 255, 0.35);
+
+  /* 4 px grid. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+
+  /* One art pixel on screen. Sprites and borders use multiples of it. */
+  --px: 2px;
+
+  --font: "Monocraft", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 18px;
+  --fs-xl: 28px;
+
+  --titlebar-h: 36px;
+  --statusbar-h: 28px;
+
+  /* Stepped pixel border: a 2 px edge with notched corners. */
+  --pixel-border:
+    0 calc(-1 * var(--px)) 0 0 var(--panel-edge),
+    0 var(--px) 0 0 var(--panel-edge),
+    calc(-1 * var(--px)) 0 0 0 var(--panel-edge),
+    var(--px) 0 0 0 var(--panel-edge);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: dark;
+}
