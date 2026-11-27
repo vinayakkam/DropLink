@@ -33,6 +33,7 @@ type stream struct {
 	dc     *pion.DataChannel
 	raw    datachannel.ReadWriteCloser
 	remote contract.Peer
+	sas    contract.SAS
 
 	rmu     sync.Mutex
 	rbuf    []byte
@@ -55,7 +56,7 @@ func (t *Transport) newStream(pc *pion.PeerConnection, dc *pion.DataChannel, rem
 	}
 	remote.Route = contract.RouteWebRTC
 	s := &stream{
-		pc: pc, dc: dc, raw: raw, remote: remote,
+		pc: pc, dc: dc, raw: raw, remote: remote, sas: sasFor(pc),
 		rbuf:   make([]byte, readBuf),
 		low:    make(chan struct{}, 1),
 		closed: make(chan struct{}),
@@ -161,7 +162,7 @@ func (t *Transport) Dial(ctx context.Context, to contract.Peer) (contract.Stream
 		return nil, ErrClosed
 	default:
 	}
-	pc, dc, err := t.offer(ctx, to.ID, pion.ICETransportPolicyAll)
+	pc, dc, err := t.connect(ctx, to.ID)
 	if err != nil {
 		return nil, err
 	}

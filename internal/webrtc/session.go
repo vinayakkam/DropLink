@@ -30,6 +30,8 @@ type Options struct {
 	// (tests and local demos).
 	IncludeLoopback bool
 	Log             *slog.Logger
+
+	onAttempt func(pion.ICETransportPolicy) // tests watch the fallback
 }
 
 func (o *Options) defaults() {
