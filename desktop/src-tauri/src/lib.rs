@@ -12,6 +12,7 @@
 pub mod deeplink;
 pub mod sidecar;
 pub mod tray;
+pub mod update;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -46,7 +47,8 @@ pub fn run() {
             sidecar_info,
             restart_sidecar,
             tray::sync_window_settings,
-            deeplink::take_pending_join
+            deeplink::take_pending_join,
+            update::install_update
         ])
         .setup(|app| {
             tray::install(app.handle())?;

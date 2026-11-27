@@ -10,6 +10,7 @@ import (
 	"github.com/vinayakkam/droplink/internal/contract"
 	"github.com/vinayakkam/droplink/internal/manager"
 	"github.com/vinayakkam/droplink/internal/server"
+	"github.com/vinayakkam/droplink/internal/update"
 )
 
 // wire builds the settings and the transfer manager on top of the
@@ -40,7 +41,8 @@ func wire(cfg config.Config, p *app.Providers, srv *server.Server, log *slog.Log
 		AutoAcceptTrusted: func() bool { return settings.Get().AutoAcceptTrusted },
 	})
 
-	deps := api.Deps{Manager: m, Crypto: p.Crypto, History: p.History, Settings: settings}
+	deps := api.Deps{Manager: m, Crypto: p.Crypto, History: p.History, Settings: settings,
+		Updater: &api.Updater{Client: update.New(version, filepath.Join(cfg.DataDir, "updates")), Events: m}}
 	if r, ok := p.WebRTC.(api.Roomer); ok {
 		deps.Rooms = r
 	}
