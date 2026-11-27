@@ -3,6 +3,11 @@ package api
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -19,6 +24,7 @@ import (
 	"github.com/vinayakkam/droplink/internal/mock"
 	"github.com/vinayakkam/droplink/internal/server"
 	"github.com/vinayakkam/droplink/internal/testutil"
+	"github.com/vinayakkam/droplink/internal/update"
 )
 
 const token = "0123456789abcdef0123456789abcdef"
@@ -264,4 +270,80 @@ func TestEventStream(t *testing.T) {
 		t.Fatalf("peer event %v, heartbeat %v", sawPeer, sawPing)
 	}
 	cancel()
+}
+
+func TestUpdateRoutes(t *testing.T) {
+	testutil.NoLeaks(t)
+	// A signed release on a local server.
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	installer := []byte("setup-bytes")
+	sum := sha256.Sum256(installer)
+	hexSum := hex.EncodeToString(sum[:])
+	mux := http.NewServeMux()
+	rel := httptest.NewServer(mux)
+	defer rel.Close()
+	mux.HandleFunc("/latest.json", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(update.Manifest{Version: "9.0.0", Notes: "big", Platforms: map[string]update.Asset{
+			"windows-x86_64": {URL: rel.URL + "/setup.exe", Size: int64(len(installer)), SHA256: hexSum, Signature: update.Sign(priv, "9.0.0", hexSum)},
+		}})
+	})
+	mux.HandleFunc("/setup.exe", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(installer) })
+
+	c := update.New("1.0.0", t.TempDir())
+	c.URL, c.PublicKey, c.Platform = rel.URL+"/latest.json", base64.StdEncoding.EncodeToString(pub), "windows-x86_64"
+	m := manager.New(manager.Deps{Self: contract.Peer{ID: "me"}}, manager.Options{})
+	defer m.Close()
+	srv := server.New(config.Default(), token, "test")
+	Register(srv, Deps{Manager: m, Crypto: mock.NewCrypto("me"), History: &mock.History{},
+		Settings: mustSettings(t), Updater: &Updater{Client: c, Events: m}})
+	api := httptest.NewServer(srv.Handler())
+	defer api.Close()
+	do := func(method, path string) (int, string) {
+		req, _ := http.NewRequest(method, api.URL+path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		res, err := api.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
+	}
+
+	if code, _ := do("POST", "/api/update/download"); code != 409 {
+		t.Fatalf("download before check: %d", code)
+	}
+	ev, cancel := m.Subscribe()
+	defer cancel()
+	code, body := do("GET", "/api/update")
+	if code != 200 || !strings.Contains(body, `"available":true`) || !strings.Contains(body, `"latest":"9.0.0"`) {
+		t.Fatalf("check %d %s", code, body)
+	}
+	if code, _ := do("POST", "/api/update/download"); code != 202 {
+		t.Fatalf("download %d", code)
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case e := <-ev:
+			if s, ok := e.Update.(UpdateState); ok && s.Phase == "ready" {
+				got, _ := os.ReadFile(filepath.Join(c.Dir, update.InstallerFile))
+				if string(got) != "setup-bytes" {
+					t.Fatalf("installer %q", got)
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("no ready event")
+		}
+	}
+}
+
+func mustSettings(t *testing.T) *SettingsStore {
+	t.Helper()
+	st, err := LoadSettings(filepath.Join(t.TempDir(), "s.json"), DefaultSettings("n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
 }

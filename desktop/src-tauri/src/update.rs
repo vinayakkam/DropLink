@@ -53,3 +53,25 @@ fn launch(path: &Path) -> Result<(), String> {
 fn launch(_path: &Path) -> Result<(), String> {
     Err("self-update installs on Windows only; use your package manager".into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn installer_path_is_fixed_inside_app_data() {
+        let p = installer_path(Path::new("C:/data/com.droplink.app"));
+        assert!(p.ends_with("updates/droplink-update-setup.exe"));
+        assert_eq!(INSTALLER_FILE, "droplink-update-setup.exe");
+    }
+
+    #[test]
+    fn update_runs_silently_and_relaunches() {
+        assert!(INSTALLER_ARGS.contains(&"/SILENT"));
+        assert!(INSTALLER_ARGS.contains(&"/RELAUNCH=1"));
+        assert!(
+            !INSTALLER_ARGS.iter().any(|a| a.starts_with("/DIR")),
+            "never redirect the install"
+        );
+    }
+}
