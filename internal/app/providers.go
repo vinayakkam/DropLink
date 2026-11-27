@@ -12,6 +12,7 @@ import (
 	"github.com/vinayakkam/droplink/internal/config"
 	"github.com/vinayakkam/droplink/internal/contract"
 	dlcrypto "github.com/vinayakkam/droplink/internal/crypto"
+	"github.com/vinayakkam/droplink/internal/discovery"
 	"github.com/vinayakkam/droplink/internal/mock"
 )
 
@@ -43,8 +44,8 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 	p := &Providers{
 		Self:   self,
 		Crypto: crypto,
-		// p2/lan-discovery replaces this line.
-		Discovery: mock.NewDiscovery(),
+		// p2/lan-discovery: UDP beacons on the LAN.
+		Discovery: discovery.New(self, discovery.PortFromEnv(), discovery.Options{}),
 		// p2/lan-transfer replaces this line.
 		LAN: network.Join(self, contract.RouteLAN),
 		// p2/webrtc replaces this line.

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -31,6 +33,8 @@ type Options struct {
 	NoBroadcast bool // do not also send to subnet broadcast addresses
 
 	Log *slog.Logger
+
+	fingerprint func() string // tests fake network changes
 }
 
 func (o *Options) defaults() {
@@ -109,15 +113,25 @@ func (d *Discovery) Run(ctx context.Context) error {
 	}
 	defer send.Close()
 
-	recv, err := d.listen()
-	if err != nil {
+	var wg sync.WaitGroup
+	var recv *net.UDPConn
+	startRecv := func() error {
+		c, err := d.listen()
+		if err != nil {
+			return err
+		}
+		recv = c
+		wg.Add(1)
+		go func() { defer wg.Done(); d.recvLoop(c) }()
+		return nil
+	}
+	if err := startRecv(); err != nil {
 		return err
 	}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() { defer wg.Done(); d.recvLoop(recv) }()
 	defer func() {
-		recv.Close() // ends recvLoop
+		if recv != nil {
+			recv.Close() // ends recvLoop
+		}
 		wg.Wait()
 	}()
 
@@ -125,6 +139,12 @@ func (d *Discovery) Run(ctx context.Context) error {
 	defer tick.Stop()
 	sweep := time.NewTicker(max(d.opts.TTL/7, 100*time.Millisecond))
 	defer sweep.Stop()
+	rescan := time.NewTicker(d.opts.Rescan)
+	defer rescan.Stop()
+	fp := interfaceFingerprint()
+	if d.opts.fingerprint != nil {
+		fp = d.opts.fingerprint()
+	}
 	targets := d.targets()
 	d.announce(send, targets)
 	for {
@@ -137,8 +157,57 @@ func (d *Discovery) Run(ctx context.Context) error {
 			d.announce(send, targets)
 		case <-d.kick:
 			d.announce(send, targets)
+		case <-rescan.C:
+			now := interfaceFingerprint()
+			if d.opts.fingerprint != nil {
+				now = d.opts.fingerprint()
+			}
+			if now == fp {
+				continue
+			}
+			// Wi-Fi switched, VPN up, cable plugged: rejoin the group on
+			// the new default interface and announce on the new subnets.
+			fp = now
+			d.opts.Log.Info("discovery: network changed, rejoining")
+			if d.opts.ListenAddr == "" {
+				if recv != nil {
+					recv.Close()
+					recv = nil
+				}
+				if err := startRecv(); err != nil {
+					// No network right now (e.g. Wi-Fi off): try again next scan.
+					d.opts.Log.Warn("discovery: rejoin failed", "err", err)
+					fp = ""
+				}
+			}
+			targets = d.targets()
+			d.announce(send, targets)
 		}
 	}
+}
+
+// interfaceFingerprint changes whenever an interface goes up or down or
+// gets a different address.
+func interfaceFingerprint() string {
+	ifs, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	var b []byte
+	for _, ifi := range ifs {
+		if ifi.Flags&net.FlagUp == 0 {
+			continue
+		}
+		b = append(b, ifi.Name...)
+		b = append(b, '=')
+		addrs, _ := ifi.Addrs()
+		for _, a := range addrs {
+			b = append(b, a.String()...)
+			b = append(b, ',')
+		}
+		b = append(b, ';')
+	}
+	return string(b)
 }
 
 // listen opens the receive socket: joined to the group, or on
@@ -261,4 +330,14 @@ func broadcastAddrs() []net.IP {
 		}
 	}
 	return out
+}
+
+// PortFromEnv reads DROPLINK_LAN_PORT (0 when unset or invalid). The LAN
+// transport sets the real port with SetPort once it listens.
+func PortFromEnv() uint16 {
+	n, err := strconv.ParseUint(os.Getenv("DROPLINK_LAN_PORT"), 10, 16)
+	if err != nil {
+		return 0
+	}
+	return uint16(n)
 }
