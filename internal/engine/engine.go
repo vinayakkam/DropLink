@@ -421,9 +421,13 @@ func hashPrefix(h hash.Hash, r io.Reader, n int64, buf []byte) error {
 
 // Receive reads an offer, asks accept, and stores the files into dst. If
 // dst implements Haver, files it already partly has resume where they
-// stopped.
+// stopped. If the sender cancels or goes away while accept is still
+// deciding, Receive returns ErrCanceled at once without waiting for it;
+// accept must then return soon after ctx is done.
 func (e *Engine) Receive(ctx context.Context, s contract.Stream, accept func(contract.Offer) bool, dst contract.Sink, progress func(contract.Progress)) (o contract.Offer, err error) {
 	ss := e.newSession(ctx, s, progress)
+	pr := &peekReader{ReadWriter: s}
+	ss.c.rw = pr // before closeOnCancel can write through it
 	defer s.Close()
 	stop := closeOnCancel(ctx, ss.c, s)
 	defer stop()
@@ -449,7 +453,11 @@ func (e *Engine) Receive(ctx context.Context, s contract.Stream, accept func(con
 	ss.setOffer(o)
 	ss.report(contract.StateOffered, nil, true)
 
-	if !accept(o) {
+	ok, err := pr.decide(o, accept)
+	if err != nil {
+		return o, ss.fail(err)
+	}
+	if !ok {
 		js, _ := json.Marshal(answer{Accept: false})
 		_ = ss.c.writeFrame(tAnswer, js)
 		ss.report(contract.StateRejected, ErrRejected, true)
@@ -582,4 +590,55 @@ func ctxErr(ctx context.Context, err error) error {
 		return fmt.Errorf("%w: %w", ErrCanceled, ctx.Err())
 	}
 	return err
+}
+
+// peekReader lets Receive watch the connection while the user decides on
+// an offer. Between OFFER and ANSWER the sender writes nothing but CANCEL
+// or ERROR, so any byte, EOF or read error in that window means the offer
+// is dead. If the offer is accepted first, the byte the watcher may be
+// holding is handed back as the start of the stream.
+type peekReader struct {
+	io.ReadWriter
+	peek chan peeked // the watcher's pending read, nil when none
+}
+
+type peeked struct {
+	b   byte
+	n   int
+	err error
+}
+
+func (r *peekReader) Read(p []byte) (int, error) {
+	if r.peek == nil || len(p) == 0 {
+		return r.ReadWriter.Read(p)
+	}
+	pk := <-r.peek
+	r.peek = nil
+	if pk.n == 0 {
+		return 0, pk.err
+	}
+	p[0] = pk.b
+	return 1, nil
+}
+
+// decide runs accept while one read watches the connection.
+func (r *peekReader) decide(o contract.Offer, accept func(contract.Offer) bool) (bool, error) {
+	peek := make(chan peeked, 1)
+	go func() { // ends with a byte, or when Receive closes the stream
+		var b [1]byte
+		n, err := r.ReadWriter.Read(b[:])
+		for n == 0 && err == nil {
+			n, err = r.ReadWriter.Read(b[:])
+		}
+		peek <- peeked{b: b[0], n: n, err: err}
+	}()
+	verdict := make(chan bool, 1)
+	go func() { verdict <- accept(o) }()
+	select {
+	case ok := <-verdict:
+		r.peek = peek
+		return ok, nil
+	case <-peek:
+		return false, fmt.Errorf("%w: the sender left before the offer was answered", ErrCanceled)
+	}
 }
