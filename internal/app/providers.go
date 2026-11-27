@@ -13,6 +13,7 @@ import (
 	"github.com/vinayakkam/droplink/internal/contract"
 	dlcrypto "github.com/vinayakkam/droplink/internal/crypto"
 	"github.com/vinayakkam/droplink/internal/discovery"
+	"github.com/vinayakkam/droplink/internal/lan"
 	"github.com/vinayakkam/droplink/internal/mock"
 )
 
@@ -38,16 +39,21 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 
 	self := contract.Peer{ID: crypto.ID(), Name: cfg.DeviceName, Route: contract.RouteLAN}
 	network := mock.NewNetwork()
+	// p2/lan-discovery: UDP beacons on the LAN.
+	disc := discovery.New(self, discovery.PortFromEnv(), discovery.Options{})
+	// p2/lan-transfer: encrypted TCP; its port goes into the beacons.
+	lanT, err := lan.New(self, crypto, lan.Options{Addr: lan.AddrFromEnv(), OnPort: disc.SetPort})
+	if err != nil {
+		return nil, err
+	}
 	webrtcSelf := self
 	webrtcSelf.Route = contract.RouteWebRTC
 
 	p := &Providers{
-		Self:   self,
-		Crypto: crypto,
-		// p2/lan-discovery: UDP beacons on the LAN.
-		Discovery: discovery.New(self, discovery.PortFromEnv(), discovery.Options{}),
-		// p2/lan-transfer replaces this line.
-		LAN: network.Join(self, contract.RouteLAN),
+		Self:      self,
+		Crypto:    crypto,
+		Discovery: disc,
+		LAN:       lanT,
 		// p2/webrtc replaces this line.
 		WebRTC: network.Join(webrtcSelf, contract.RouteWebRTC),
 		// p2/signaling replaces this line.

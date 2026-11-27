@@ -66,6 +66,8 @@ type Transport struct {
 
 	mu      sync.Mutex
 	streams map[*stream]struct{}
+
+	limit *limiter
 }
 
 var _ contract.Transport = (*Transport)(nil)
@@ -89,6 +91,7 @@ func New(self contract.Peer, crypto contract.Crypto, opts Options) (*Transport, 
 		incoming: make(chan contract.Stream, opts.MaxPending),
 		done:     make(chan struct{}),
 		streams:  map[*stream]struct{}{},
+		limit:    newLimiter(),
 	}
 	if opts.OnPort != nil {
 		opts.OnPort(t.Port())
@@ -255,12 +258,14 @@ func (t *Transport) setup(ctx context.Context, c net.Conn, initiator bool, remot
 	if err != nil {
 		return nil, fmt.Errorf("lan: negotiate with %s: %w", c.RemoteAddr(), err)
 	}
-	s := &stream{conn: sc, sas: sc.SAS(), r: sc, w: sc, remote: remote, compressed: flags&flagZstd != 0}
+	s := &stream{conn: sc, sas: sc.SAS(), r: sc, w: sc, remote: remote, compressed: flags&flagZstd != 0,
+		closed: make(chan struct{})}
 	if s.compressed {
 		if err := compress(s); err != nil {
 			return nil, err
 		}
 	}
+	s.w = limitWriter{l: t.limit, w: s.w, closed: s.closed}
 	return t.track(s), nil
 }
 
@@ -290,6 +295,7 @@ type stream struct {
 	once   sync.Once
 
 	compressed bool
+	closed     chan struct{} // closed by Close; ends speed-limit waits
 }
 
 func (s *stream) Read(p []byte) (int, error)  { return s.r.Read(p) }
@@ -303,6 +309,9 @@ func (s *stream) SAS() contract.SAS { return s.sas }
 func (s *stream) Close() error {
 	var err error
 	s.once.Do(func() {
+		if s.closed != nil {
+			close(s.closed)
+		}
 		err = s.conn.Close()
 		for _, c := range s.extra {
 			_ = c.Close()
