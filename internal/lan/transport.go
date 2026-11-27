@@ -29,6 +29,7 @@ type Options struct {
 	DialTimeout      time.Duration // TCP connect timeout (5 s)
 	HandshakeTimeout time.Duration // per-connection setup bound (10 s)
 	MaxPending       int           // accepted streams waiting for Accept (16)
+	NoCompress       bool          // never use zstd (both ends must agree to use it)
 	OnPort           func(uint16)  // called once with the listening port
 	Log              *slog.Logger
 }
@@ -246,7 +247,21 @@ func (t *Transport) setup(ctx context.Context, c net.Conn, initiator bool, remot
 		remote.ID = sc.RemoteID()
 		remote.Trusted = t.crypto.IsTrusted(remote.ID)
 	}
-	return t.track(&stream{conn: sc, sas: sc.SAS(), r: sc, w: sc, remote: remote}), nil
+	want := flagZstd
+	if t.opts.NoCompress {
+		want = 0
+	}
+	flags, err := negotiate(sc, initiator, want)
+	if err != nil {
+		return nil, fmt.Errorf("lan: negotiate with %s: %w", c.RemoteAddr(), err)
+	}
+	s := &stream{conn: sc, sas: sc.SAS(), r: sc, w: sc, remote: remote, compressed: flags&flagZstd != 0}
+	if s.compressed {
+		if err := compress(s); err != nil {
+			return nil, err
+		}
+	}
+	return t.track(s), nil
 }
 
 func (t *Transport) track(s *stream) *stream {
@@ -273,6 +288,8 @@ type stream struct {
 	remote contract.Peer
 	t      *Transport
 	once   sync.Once
+
+	compressed bool
 }
 
 func (s *stream) Read(p []byte) (int, error)  { return s.r.Read(p) }
