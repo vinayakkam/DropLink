@@ -130,7 +130,13 @@ DropLink tries a direct path first and falls back to the relay only if nothing c
 
 A tampered or unsigned installer is never run, and the UI cannot point the shell at any other file. Set `DROPLINK_UPDATE_URL` to use another manifest (for a test server).
 
-**Linux.** The releases page has `droplink-<version>-linux-amd64.deb` (`sudo apt install ./droplink-*.deb`) and `droplink-<version>-linux-amd64.AppImage` (`chmod +x`, then run it). Self-update is Windows-only for now: on Linux, install each new release yourself.
+**Linux (x86_64).** Every release has:
+- `droplink-<version>-linux-amd64.deb` for Debian, Ubuntu, Mint, Pop!_OS: `sudo apt install ./droplink-*.deb`
+- `droplink-<version>-linux-amd64.rpm` for Fedora, RHEL, openSUSE: `sudo dnf install ./droplink-*.rpm` (or `zypper install`)
+- `droplink-<version>-linux-amd64.AppImage` for any distro: `chmod +x`, then run it (Arch needs `fuse2`)
+- `droplink-bin.PKGBUILD` and `droplink-bin.SRCINFO` for Arch and Manjaro: save the first as `PKGBUILD` in an empty folder and run `makepkg -si`. The same two files, renamed `PKGBUILD` and `.SRCINFO`, are what goes into the AUR package `droplink-bin`.
+
+Self-update is Windows-only for now: on Linux, install each new release yourself.
 
 **macOS.** No release build yet; `task build` makes a dmg on a Mac.
 
@@ -152,7 +158,7 @@ Get-Content -Raw "$env:USERPROFILE\.droplink\update-signing.key" | gh secret set
 1. Bump `version` in `desktop/src-tauri/tauri.conf.json` (also `desktop/package.json` and `Cargo.toml`) and merge it into `main`.
 2. Tag and push: `git tag v1.2.3`, then `git push origin v1.2.3`.
 
-The workflow builds the Windows installer, signs `latest.json` with the secret key, builds the Linux `.deb` and `.AppImage`, and uploads them all to the `v1.2.3` release, creating it if needed. To rebuild an existing release's files from a branch, run it by hand (Actions → release → Run workflow) with that tag.
+The workflow builds the Windows installer, signs `latest.json` with the secret key, builds the Linux `.deb`, `.rpm` and `.AppImage` and an Arch `PKGBUILD` (tested by building it in an Arch container), and uploads them all to the `v1.2.3` release, creating it if needed. To rebuild an existing release's files from a branch, run it by hand (Actions → release → Run workflow) with that tag.
 
 **Release by hand (Windows):**
 1. Bump `version` in `desktop/src-tauri/tauri.conf.json` (also `desktop/package.json` and `Cargo.toml`).
