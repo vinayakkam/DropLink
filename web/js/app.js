@@ -3,6 +3,7 @@
 // same store.
 import { api, connect } from "./api.js";
 import { reducedMotion, runBoot } from "./bootseq.js";
+import { mountScenes } from "./pixel/mount.js";
 import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
 import { showView, watchRoute } from "./views.js";
@@ -10,6 +11,8 @@ import { showView, watchRoute } from "./views.js";
 export const store = createStore({
   engine: { state: "starting", version: "", device: "", features: [] },
   route: { view: "home", query: {} },
+  peers: [],
+  selected: new Set(),
 });
 
 initTitlebar(document);
@@ -27,6 +30,8 @@ store.select(
     if (engine.device) document.getElementById("sector").textContent = `SECTOR: ${engine.device.toUpperCase()}`;
   },
 );
+
+mountScenes(document, store);
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });
