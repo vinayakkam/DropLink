@@ -3,13 +3,14 @@
 // same store.
 import { api, connect } from "./api.js";
 import { reducedMotion, runBoot } from "./bootseq.js";
+import { initDesktop } from "./desktop.js";
 import { connectEvents } from "./events.js";
 import { mountScenes } from "./pixel/mount.js";
 import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
 import { createSfx } from "./sfx.js";
 import { applyAppearance } from "./theme.js";
-import { mountHome } from "./ui/home.js";
+import { mountHome, setPickers } from "./ui/home.js";
 import { mountPages } from "./ui/pages.js";
 import { showView, watchRoute } from "./views.js";
 
@@ -45,7 +46,9 @@ store.select(
 
 mountScenes(document, store);
 export const home = mountHome(document, store, { sfx });
-export const pages = mountPages(document, store, { sfx, applySettings: applyAppearance });
+const pagesOpts = { sfx, applySettings: applyAppearance };
+export const pages = mountPages(document, store, pagesOpts);
+const desktop = initDesktop(store, { setPickers, setCargo: home.setCargo, pagesOpts, joinRoom: (code) => pages.joinRoom(code) });
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });
@@ -56,6 +59,7 @@ try {
   store.set({ engine: { state: "online", version: info.version, device: info.device, features: info.features ?? [] } });
   await connectEvents(store, {
     onEvent: (ev) => {
+      desktop.onEvent(ev);
       const t = ev.transfer;
       if (ev.type !== "transfer" || !t) return;
       if (t.state === "done" && !t.outgoing) sfx("done");

@@ -288,3 +288,17 @@ textarea.input {
   accent-color: var(--accent);
   width: 100%;
 }
+
+.room-share {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  flex-wrap: wrap;
+}
+
+.qr {
+  width: 132px;
+  height: 132px;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 var(--px) var(--accent-dim), 0 0 var(--s4) var(--accent-glow);
+}

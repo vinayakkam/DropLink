@@ -39,9 +39,11 @@ The Go sidecar serves this API on `127.0.0.1:<port>`; the desktop shell gets the
 
 `Settings`: `{name, avatar 0..15, downloadDir (absolute), autoAcceptTrusted, speedLimitKBps (0 = none), volume 0..100, theme cyan|amber|magenta, motion, history, closeToTray}`.
 
-## Planned
-| Method | Path | Feature | Branch | Body → Returns |
-|---|---|---|---|---|
-| GET | `/api/rooms/{code}/qr` | `qr` | p1/desktop-integration | `{"size": n, "bits": "0101…"}` (pixel-drawn by the UI) |
+## QR and deep links (p1/desktop-integration)
+| Method | Path | Feature | Returns |
+|---|---|---|---|
+| GET | `/api/rooms/{code}/qr` | `qr` | `{"size": n, "bits": "0101…" (n×n, row by row, 1 = dark), "text": "droplink://join/CODE"}`; `400` for a malformed code |
+
+The desktop app opens `droplink://join/<CODE>` links and joins that room.
 
 Types are the JSON forms of the structs in `internal/contract/contract.go`, `internal/manager` and `internal/api`.

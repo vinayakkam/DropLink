@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The bundled UI window: core APIs plus the window controls of the custom title bar. File transfer goes through the sidecar's loopback API, not Tauri plugins.",
+  "description": "The bundled UI window: core APIs, the window controls of the custom title bar, events from the shell and native notifications. File transfer goes through the sidecar's loopback API, not Tauri plugins.",
   "windows": [
     "main"
   ],
@@ -11,6 +11,15 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-close",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-focused",
+    "core:event:default",
+    "notification:default",
+    "core:webview:default",
+    "dialog:allow-open",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }

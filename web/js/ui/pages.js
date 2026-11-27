@@ -15,21 +15,28 @@ export function mountPages(doc, store, opts) {
   const sfx = opts.sfx ?? (() => {});
   const features = () => store.get().engine.features ?? [];
 
-  // Refresh a page's data whenever it is opened.
+  // Refresh a page's data whenever it is opened, and once the engine is
+  // online (its feature list decides what the pages offer).
+  const refresh = (view) => {
+    if (store.get().engine.state !== "online") return;
+    if (view === "history") loadHistory();
+    if (view === "settings") loadSettings();
+    if (view === "rooms") drawRooms();
+  };
+  store.select((s) => s.route.view, refresh);
   store.select(
-    (s) => s.route.view,
-    (view) => {
-      if (store.get().engine.state !== "online") return;
-      if (view === "history") loadHistory();
-      if (view === "settings") loadSettings();
-      if (view === "rooms") drawRooms();
+    (s) => s.engine.state,
+    (st) => {
+      if (st !== "online") return;
+      loadSettings();
+      refresh(store.get().route.view);
     },
   );
-  store.select((s) => s.engine.state, (st) => st === "online" && loadSettings());
   store.select((s) => s.room, () => store.get().route.view === "rooms" && drawRooms());
 
   // --- ROOMS ----------------------------------------------------------
   function drawRooms() {
+    if (store.get().engine.state !== "online") return;
     const body = doc.getElementById("rooms-body");
     if (!features().includes("rooms")) {
       render(body, h("p", { class: "muted" }, "Rooms need a signaling hub. Start droplink-signal and set DROPLINK_SIGNAL_URL."));
@@ -40,7 +47,7 @@ export function mountPages(doc, store, opts) {
       render(
         body,
         h("p", { class: "muted" }, "Share this code with the other device. It joins from its ROOMS page."),
-        h("div", { class: "room-code glow", "aria-label": "room code" }, room.code),
+        h("div", { class: "room-share" }, h("div", { class: "room-code glow", "aria-label": "room code" }, room.code), features().includes("qr") ? qrTile(room.code) : null),
         h(
           "ul",
           { class: "list" },
@@ -60,6 +67,15 @@ export function mountPages(doc, store, opts) {
       h("div", null, h("button", { class: "btn", onclick: () => join("") }, "CREATE ROOM")),
       h("div", { class: "field" }, h("span", { class: "field__label" }, "JOIN WITH CODE"), h("div", { class: "row" }, code, h("button", { class: "btn btn--ghost", onclick: () => join(code.value) }, "JOIN"))),
     );
+  }
+
+  /** A pixel-art QR of droplink://join/CODE, for a phone camera or a second screen. */
+  function qrTile(code) {
+    const canvas = h("canvas", { class: "qr", "aria-label": `QR code for room ${code}` });
+    api(`/api/rooms/${encodeURIComponent(code)}/qr`)
+      .then((q) => drawQR(canvas, q))
+      .catch(() => canvas.remove());
+    return canvas;
   }
 
   async function join(code) {
@@ -219,5 +235,33 @@ export function mountPages(doc, store, opts) {
     );
   }
 
-  return { loadSettings };
+  return {
+    loadSettings,
+    /** Joins a room (deep links use it) and shows the ROOMS page. */
+    async joinRoom(code) {
+      globalThis.location.hash = "#/rooms";
+      await join(code);
+    },
+  };
+}
+
+/**
+ * Draws QR modules dark on light (what cameras expect) with a 2-module
+ * quiet zone; the canvas is scaled up crisply by CSS.
+ * @param {HTMLCanvasElement} canvas
+ * @param {{ size: number, bits: string }} q
+ */
+export function drawQR(canvas, q, dark = "#05070d", light = "#d8f6ff") {
+  const quiet = 2;
+  const n = q.size + quiet * 2;
+  canvas.width = n;
+  canvas.height = n;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, n, n);
+  ctx.fillStyle = dark;
+  for (let i = 0; i < q.bits.length; i++) {
+    if (q.bits[i] === "1") ctx.fillRect(quiet + (i % q.size), quiet + Math.floor(i / q.size), 1, 1);
+  }
+  return n;
 }
