@@ -58,10 +58,16 @@ tasks:
     cmds:
       - cargo test --quiet --manifest-path desktop/src-tauri/Cargo.toml
 
+  test:web:
+    desc: UI tests (Node's built-in runner, no dependencies)
+    cmds:
+      - node --test "web/tests/*.test.js"
+
   test:
     desc: All tests
     cmds:
       - task: test:go
+      - task: test:web
       - task: test:rust
 
   check:

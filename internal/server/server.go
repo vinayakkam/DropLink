@@ -60,7 +60,11 @@ func New(cfg config.Config, token, version string) *Server {
 	if cfg.WebDir != "" {
 		// Development only: lets a plain browser open the UI and fetch the
 		// token from the same origin. Tauri builds never pass -web-dir.
-		s.mux.Handle("GET /", http.FileServer(http.Dir(cfg.WebDir)))
+		files := http.FileServer(http.Dir(cfg.WebDir))
+		s.mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-cache") // edits show on reload
+			files.ServeHTTP(w, r)
+		}))
 		s.mux.HandleFunc("GET /dev/session", s.devSession)
 	}
 	return s
