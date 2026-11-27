@@ -64,6 +64,9 @@ type Transport struct {
 	sessions map[string]*session  // setting up, by session ID
 	streams  map[*stream]struct{} // open, closed by Close
 
+	// onMembers is told when someone joins or leaves the room.
+	onMembers func(code string, members []contract.Peer)
+
 	// accepted receives each connection the other side opened.
 	accepted func(pc *pion.PeerConnection, dc *pion.DataChannel, from contract.DeviceID)
 
@@ -111,9 +114,29 @@ func (t *Transport) JoinRoom(ctx context.Context, code string) (string, error) {
 		defer close(done)
 		for s := range room.Signals() {
 			t.dispatch(room, s)
+			if s.Kind == contract.SignalHello || s.Kind == contract.SignalBye {
+				t.notifyMembers(room)
+			}
 		}
 	}()
 	return room.Code(), nil
+}
+
+// OnMembersChange registers fn, called (from the room's reader, so it
+// must not block) whenever a member joins or leaves.
+func (t *Transport) OnMembersChange(fn func(code string, members []contract.Peer)) {
+	t.mu.Lock()
+	t.onMembers = fn
+	t.mu.Unlock()
+}
+
+func (t *Transport) notifyMembers(room contract.Room) {
+	t.mu.Lock()
+	fn := t.onMembers
+	t.mu.Unlock()
+	if fn != nil {
+		fn(room.Code(), room.Members())
+	}
 }
 
 // LeaveRoom leaves the current room. Open streams stay up; connections

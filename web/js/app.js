@@ -7,7 +7,10 @@ import { connectEvents } from "./events.js";
 import { mountScenes } from "./pixel/mount.js";
 import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
+import { createSfx } from "./sfx.js";
+import { applyAppearance } from "./theme.js";
 import { mountHome } from "./ui/home.js";
+import { mountPages } from "./ui/pages.js";
 import { showView, watchRoute } from "./views.js";
 
 export const store = createStore({
@@ -19,7 +22,10 @@ export const store = createStore({
   dropHover: false,
   room: null,
   link: "down",
+  settings: null,
 });
+
+const sfx = createSfx(() => store.get().settings?.volume ?? 0);
 
 initTitlebar(document);
 watchRoute(window, store);
@@ -38,7 +44,8 @@ store.select(
 );
 
 mountScenes(document, store);
-export const home = mountHome(document, store);
+export const home = mountHome(document, store, { sfx });
+export const pages = mountPages(document, store, { sfx, applySettings: applyAppearance });
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });
@@ -47,7 +54,14 @@ try {
   await connect();
   const info = await api("/api/info");
   store.set({ engine: { state: "online", version: info.version, device: info.device, features: info.features ?? [] } });
-  await connectEvents(store);
+  await connectEvents(store, {
+    onEvent: (ev) => {
+      const t = ev.transfer;
+      if (ev.type !== "transfer" || !t) return;
+      if (t.state === "done" && !t.outgoing) sfx("done");
+      if (t.state === "failed") sfx("error");
+    },
+  });
   await boot.finish(true, `ENGINE ONLINE · ${info.device}`);
   setTimeout(() => (bootEl.dataset.done = ""), reducedMotion() ? 0 : 350);
   // Remove it outright once the fade is over, even if a throttled

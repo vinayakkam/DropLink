@@ -106,6 +106,18 @@ func newID() contract.TransferID {
 // until Close.
 func (m *Manager) Run() {
 	for _, t := range m.d.Transports {
+		if r, ok := t.(interface {
+			OnMembersChange(func(string, []contract.Peer))
+		}); ok {
+			// Room members are contacts too: re-send the room and a fresh
+			// snapshot so the radar lists whoever just joined or left.
+			r.OnMembersChange(func(code string, members []contract.Peer) {
+				m.EmitRoom(code, members)
+				m.events.emit(m.Snapshot())
+			})
+		}
+	}
+	for _, t := range m.d.Transports {
 		m.wg.Add(1)
 		go func() {
 			defer m.wg.Done()
