@@ -1,0 +1,29 @@
+# Maintainer: DropLink contributors <https://github.com/vinayakkam/DropLink>
+#
+# Template for the AUR package droplink-bin. The release workflow fills in
+# @VERSION@ and the checksums, builds it once in an Arch container, and
+# attaches the result to the GitHub release as droplink-bin.PKGBUILD (with
+# droplink-bin.SRCINFO). To publish: copy both into the AUR repo as
+# PKGBUILD and .SRCINFO, commit and push.
+pkgname=droplink-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Send files, folders and text peer to peer, over the LAN or across the internet'
+arch=('x86_64')
+url='https://github.com/vinayakkam/DropLink'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'hicolor-icon-theme')
+provides=('droplink')
+conflicts=('droplink')
+options=('!strip' '!debug')
+source=("droplink-${pkgver}-linux-amd64.deb::${url}/releases/download/v${pkgver}/droplink-${pkgver}-linux-amd64.deb"
+        "LICENSE-${pkgver}::https://raw.githubusercontent.com/vinayakkam/DropLink/v${pkgver}/LICENSE")
+sha256sums=('@DEB_SHA256@'
+            '@LICENSE_SHA256@')
+
+package() {
+  # makepkg unpacks the .deb; its data archive holds /usr.
+  bsdtar -xf "${srcdir}"/data.tar.* -C "${pkgdir}"
+  chmod -R u=rwX,go=rX "${pkgdir}/usr"
+  install -Dm644 "${srcdir}/LICENSE-${pkgver}" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

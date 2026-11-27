@@ -76,7 +76,10 @@ func TestReleaseWorkflow(t *testing.T) {
 		"secrets.DROPLINK_UPDATE_KEY",
 		"go run ./tools/release build",
 		"go run ./tools/release sign",
-		"--bundles deb,appimage",
+		"--bundles deb,rpm,appimage",
+		"container: archlinux:latest",
+		"makepkg --nodeps",
+		"needs: [windows, linux, arch]",
 		"gh release upload",
 		`rm -f "$key"`,
 	} {
@@ -89,6 +92,25 @@ func TestReleaseWorkflow(t *testing.T) {
 	}
 	if !strings.Contains(wf, `key="$RUNNER_TEMP/`) {
 		t.Error("the signing key must be written under RUNNER_TEMP, outside dist/")
+	}
+}
+
+// The AUR template has every placeholder the workflow fills in and the
+// libraries the Tauri shell links against.
+func TestArchPKGBUILD(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "packaging", "arch", "PKGBUILD.in"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pb := string(b)
+	for _, want := range []string{
+		"pkgname=droplink-bin", "pkgver=@VERSION@", "@DEB_SHA256@", "@LICENSE_SHA256@",
+		"webkit2gtk-4.1", "libayatana-appindicator", "droplink-${pkgver}-linux-amd64.deb",
+		"/usr/share/licenses/${pkgname}/LICENSE",
+	} {
+		if !strings.Contains(pb, want) {
+			t.Errorf("PKGBUILD.in lost %q", want)
+		}
 	}
 }
 
