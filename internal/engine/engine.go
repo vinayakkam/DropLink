@@ -97,6 +97,7 @@ func validateOffer(o *contract.Offer) error {
 
 // session holds per-transfer state shared by Send and Receive.
 type session struct {
+	ctx    context.Context
 	e      *Engine
 	c      *conn
 	s      contract.Stream
@@ -109,7 +110,7 @@ type session struct {
 }
 
 func (e *Engine) newSession(ctx context.Context, s contract.Stream, progress func(contract.Progress)) *session {
-	ss := &session{e: e, c: newConn(s), s: s, local: controlFrom(ctx), remote: NewControl()}
+	ss := &session{ctx: ctx, e: e, c: newConn(s), s: s, local: controlFrom(ctx), remote: NewControl()}
 	ss.rep = newReporter(progress, "", 0)
 	return ss
 }
@@ -132,6 +133,7 @@ func (ss *session) report(state contract.TransferState, err error, force bool) {
 
 // fail tells the peer why we stop (best effort), reports it and returns err.
 func (ss *session) fail(err error) error {
+	err = ctxErr(ss.ctx, err) // our own cancel, not the closed pipe it caused
 	if !errors.Is(err, ErrRemote) && !errors.Is(err, ErrCanceled) {
 		_ = ss.c.writeFrame(tError, []byte(err.Error()))
 	}
@@ -308,14 +310,11 @@ func (e *Engine) Send(ctx context.Context, s contract.Stream, o contract.Offer, 
 			off = ans.Offsets[i]
 		}
 		if err := ss.sendFile(run, f, off, src, *buf); err != nil {
-			if c := context.Cause(run); c != nil && !errors.Is(c, context.Canceled) {
-				err = c // the peer's reason beats our broken pipe
-			}
-			return ss.fail(err)
+			return ss.fail(peerReason(err, result))
 		}
 	}
 	if err := ss.c.writeFrame(tDone, nil); err != nil {
-		return ss.fail(err)
+		return ss.fail(peerReason(err, result))
 	}
 	select {
 	case err := <-result:
@@ -328,6 +327,20 @@ func (e *Engine) Send(ctx context.Context, s contract.Stream, o contract.Offer, 
 	ss.file = len(o.Files)
 	ss.report(contract.StateDone, nil, true)
 	return nil
+}
+
+// peerReason prefers the peer's CANCEL or ERROR over the broken pipe it
+// causes: a receiver that rejects a file says why, then hangs up, and our
+// write may fail before the reader goroutine has seen the message.
+func peerReason(err error, result <-chan error) error {
+	select {
+	case r := <-result:
+		if r != nil && (errors.Is(r, ErrRemote) || errors.Is(r, ErrCanceled)) {
+			return r
+		}
+	case <-time.After(cancelGrace):
+	}
+	return err
 }
 
 func (ss *session) readAnswer() (answer, error) {
