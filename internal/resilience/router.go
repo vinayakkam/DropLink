@@ -27,6 +27,8 @@ type Router struct {
 
 	mu   sync.Mutex
 	last map[contract.DeviceID]contract.Route
+
+	watch *Watcher
 }
 
 var _ contract.Router = (*Router)(nil)
