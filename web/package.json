@@ -1,0 +1,6 @@
+{
+  "name": "droplink-web",
+  "private": true,
+  "type": "module",
+  "description": "DropLink UI: plain ES modules, no build step, no runtime dependencies. Tests: node --test web/tests"
+}
