@@ -65,15 +65,25 @@ func run(ctx context.Context, args []string, getenv func(string) string,
 		return 1
 	}
 
-	srv := &http.Server{
-		Handler:           server.New(cfg, token, version).Handler(),
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    16 << 10,
+	api := server.New(cfg, token, version)
+	mgr, err := wire(cfg, providers, api, log)
+	if err != nil {
+		log.Error("wire", "err", err)
+		return 1
 	}
+	defer mgr.Close()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	srv := &http.Server{
+		Handler:           api.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 << 10,
+		// Requests end with the run context, so open event streams never
+		// hold up shutdown.
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
 	if cfg.WatchStdin {
 		go func() {
 			// Copy until EOF: the parent closed our stdin or died.
@@ -109,6 +119,7 @@ func run(ctx context.Context, args []string, getenv func(string) string,
 	case <-ctx.Done():
 	}
 
+	cancel() // ends event streams
 	shutdownCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
 	defer done()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
