@@ -15,6 +15,7 @@ import (
 	"github.com/vinayakkam/droplink/internal/discovery"
 	"github.com/vinayakkam/droplink/internal/lan"
 	"github.com/vinayakkam/droplink/internal/mock"
+	"github.com/vinayakkam/droplink/internal/signal"
 )
 
 // Providers holds one implementation of each contract interface.
@@ -56,8 +57,8 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 		LAN:       lanT,
 		// p2/webrtc replaces this line.
 		WebRTC: network.Join(webrtcSelf, contract.RouteWebRTC),
-		// p2/signaling replaces this line.
-		Signaler: mock.NewHub(),
+		// p2/signaling: WebSocket hub at DROPLINK_SIGNAL_URL.
+		Signaler: signal.New(signal.URLFromEnv()),
 		// p2/resilience replaces this line (history file in cfg.DataDir).
 		History: &mock.History{},
 	}

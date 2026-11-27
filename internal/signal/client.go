@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -270,4 +271,15 @@ func (r *clientRoom) reconnect(ctx context.Context) bool {
 		return true
 	}
 	return false
+}
+
+// DefaultURL is a hub on this machine (go run ./cmd/droplink-signal).
+const DefaultURL = "ws://127.0.0.1:47480/ws"
+
+// URLFromEnv is DROPLINK_SIGNAL_URL, or DefaultURL.
+func URLFromEnv() string {
+	if u := os.Getenv("DROPLINK_SIGNAL_URL"); u != "" {
+		return u
+	}
+	return DefaultURL
 }
