@@ -70,3 +70,43 @@
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: dark;
 }
+
+/* Themes: only variables change, so every panel and sprite recolors.
+   Cyan Nebula is the default above. */
+:root[data-theme="amber"] {
+  --void: #0b0703;
+  --void-2: #140d06;
+  --panel: #1a1108;
+  --panel-2: #22170b;
+  --panel-edge: #3d2a12;
+  --grid: #2a1c0c;
+  --cyan: #ffcf7a;
+  --cyan-dim: #a06d1c;
+  --cyan-deep: #4a3008;
+  --magenta: #ff7a3e;
+  --magenta-dim: #8a3a12;
+  --ink: #ffe8c2;
+  --ink-dim: #b3956a;
+  --ink-faint: #6d5a3e;
+  --accent: var(--amber);
+  --accent-dim: var(--amber-dim);
+  --accent-glow: rgba(255, 182, 62, 0.35);
+}
+
+:root[data-theme="magenta"] {
+  --void: #08040c;
+  --void-2: #100717;
+  --panel: #160a20;
+  --panel-2: #1d0e2a;
+  --panel-edge: #3a1c4f;
+  --grid: #26113a;
+  --cyan: #c89bff;
+  --cyan-dim: #6a3fa0;
+  --cyan-deep: #2e1450;
+  --ink: #f4dcff;
+  --ink-dim: #a98abb;
+  --ink-faint: #64507a;
+  --accent: var(--magenta);
+  --accent-dim: var(--magenta-dim);
+  --accent-glow: rgba(255, 62, 165, 0.35);
+}

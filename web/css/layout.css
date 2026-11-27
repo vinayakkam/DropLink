@@ -6,7 +6,7 @@
   display: grid;
   grid-template-rows: var(--titlebar-h) auto 1fr var(--statusbar-h);
   height: 100vh;
-  background: radial-gradient(ellipse at 50% -20%, rgba(62, 242, 255, 0.06), transparent 60%);
+  background: radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 60%);
 }
 
 /* Starfield behind everything; panels are slightly see-through. */
@@ -19,7 +19,11 @@
 
 .view--home > .panel,
 .page {
-  background: linear-gradient(180deg, rgba(18, 28, 49, 0.94), rgba(13, 20, 36, 0.94));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-2) 94%, transparent),
+    color-mix(in srgb, var(--panel) 94%, transparent)
+  );
 }
 
 /* Tabs */
