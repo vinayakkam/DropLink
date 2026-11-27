@@ -10,7 +10,7 @@ import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
 import { createSfx } from "./sfx.js";
 import { applyAppearance } from "./theme.js";
-import { mountHome } from "./ui/home.js";
+import { mountHome, setPickers } from "./ui/home.js";
 import { mountPages } from "./ui/pages.js";
 import { showView, watchRoute } from "./views.js";
 
@@ -46,8 +46,9 @@ store.select(
 
 mountScenes(document, store);
 export const home = mountHome(document, store, { sfx });
-export const pages = mountPages(document, store, { sfx, applySettings: applyAppearance });
-const desktop = initDesktop(store);
+const pagesOpts = { sfx, applySettings: applyAppearance };
+export const pages = mountPages(document, store, pagesOpts);
+const desktop = initDesktop(store, { setPickers, setCargo: home.setCargo, pagesOpts });
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });

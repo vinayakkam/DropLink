@@ -27,11 +27,65 @@ export function notificationFor(ev, focused) {
 }
 
 /**
- * @param {ReturnType<typeof import("./store.js").createStore>} store
+ * Normalizes what the dialog plugin returns (null, a path, or a list).
+ * @param {null | string | string[]} r
+ * @returns {string[] | null}
  */
-export function initDesktop(store) {
+export function toPaths(r) {
+  if (!r) return null;
+  const list = (Array.isArray(r) ? r : [r]).map((p) => (typeof p === "string" ? p : p?.path)).filter(Boolean);
+  return list.length ? list : null;
+}
+
+/**
+ * Turns a webview drag-drop event into a store change: hover on enter /
+ * over, off on leave, and the dropped paths on drop.
+ * @param {{ type: string, paths?: string[] }} payload
+ * @returns {{ hover: boolean, paths: string[] | null }}
+ */
+export function dropAction(payload) {
+  switch (payload?.type) {
+    case "enter":
+    case "over":
+      return { hover: true, paths: null };
+    case "drop":
+      return { hover: false, paths: payload.paths?.length ? payload.paths : null };
+    default:
+      return { hover: false, paths: null };
+  }
+}
+
+/**
+ * @param {ReturnType<typeof import("./store.js").createStore>} store
+ * @param {{ setPickers?: (p: any) => void, setCargo?: (c: any) => void, pagesOpts?: any }} [ui]
+ */
+export function initDesktop(store, ui = {}) {
   const T = tauri();
   if (!T) return { onEvent: () => {} };
+
+  // Native pickers and clipboard replace the browser fallbacks.
+  ui.setPickers?.({
+    files: async () => toPaths(await T.dialog.open({ multiple: true, directory: false, title: "Pick cargo" })),
+    folder: async () => toPaths(await T.dialog.open({ multiple: true, directory: true, title: "Pick folders" })),
+    clipboard: async () => {
+      const text = await T.clipboardManager.readText().catch(() => "");
+      return text && text.trim() ? text : null;
+    },
+    copy: (text) => T.clipboardManager.writeText(text),
+  });
+  if (ui.pagesOpts) {
+    ui.pagesOpts.browseFolder = async () => toPaths(await T.dialog.open({ directory: true, multiple: false, title: "Download folder" }))?.[0] ?? null;
+  }
+
+  // Files dragged onto the window arrive with real paths (folders too).
+  T.webview?.getCurrentWebview?.().onDragDropEvent((e) => {
+    const a = dropAction(e.payload);
+    if (store.get().dropHover !== a.hover) store.set({ dropHover: a.hover });
+    if (a.paths) {
+      if (store.get().route.view !== "home") globalThis.location.hash = "#/";
+      ui.setCargo?.({ paths: a.paths });
+    }
+  });
 
   // Settings the shell needs: close-to-tray and the tray's check mark.
   store.select(

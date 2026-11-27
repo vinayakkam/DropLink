@@ -5,7 +5,8 @@
 //! starts on launch and stops on quit ([`sidecar`]). The UI asks for the
 //! sidecar's port and token with the `sidecar_info` command, then talks to it
 //! over HTTP on 127.0.0.1. The shell adds what only a desktop app can: a
-//! tray icon and close-to-tray ([`tray`]) and native notifications.
+//! tray icon and close-to-tray ([`tray`]), native notifications, real
+//! file paths from drag-drop and pickers, and the clipboard.
 
 pub mod sidecar;
 pub mod tray;
@@ -33,6 +34,8 @@ pub fn run() {
             tray::set_visible(app, true);
         }))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(sidecar::Sidecar::default())
         .manage(tray::Behavior::default())
         .invoke_handler(tauri::generate_handler![
