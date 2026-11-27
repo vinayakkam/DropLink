@@ -19,6 +19,10 @@ import (
 // ErrClosed is returned by a closed Transport.
 var ErrClosed = errors.New("lan: transport closed")
 
+// ErrWrongPeer means the device that answered is not the one we dialed:
+// its identity key does not match the ID discovery reported.
+var ErrWrongPeer = errors.New("lan: peer identity mismatch")
+
 // Options tune a Transport. Zero values mean the defaults.
 type Options struct {
 	Addr             string        // listen address (":0" = any free port)
@@ -49,8 +53,9 @@ func (o *Options) defaults() {
 
 // Transport listens for and dials LAN streams.
 type Transport struct {
-	self contract.Peer
-	opts Options
+	self   contract.Peer
+	crypto contract.Crypto
+	opts   Options
 
 	ln       net.Listener
 	incoming chan contract.Stream
@@ -64,8 +69,12 @@ type Transport struct {
 
 var _ contract.Transport = (*Transport)(nil)
 
-// New starts listening. Call Close to stop.
-func New(self contract.Peer, opts Options) (*Transport, error) {
+// New starts listening. Every stream is secured with crypto. Call Close
+// to stop.
+func New(self contract.Peer, crypto contract.Crypto, opts Options) (*Transport, error) {
+	if crypto == nil {
+		return nil, errors.New("lan: crypto is required")
+	}
 	opts.defaults()
 	ln, err := net.Listen("tcp", opts.Addr)
 	if err != nil {
@@ -73,6 +82,7 @@ func New(self contract.Peer, opts Options) (*Transport, error) {
 	}
 	t := &Transport{
 		self:     self,
+		crypto:   crypto,
 		opts:     opts,
 		ln:       ln,
 		incoming: make(chan contract.Stream, opts.MaxPending),
@@ -224,9 +234,19 @@ func (t *Transport) setup(ctx context.Context, c net.Conn, initiator bool, remot
 	if tc, ok := c.(*net.TCPConn); ok {
 		_ = tc.SetNoDelay(true)
 	}
-	_ = initiator
-	_ = ctx
-	return t.track(&stream{conn: c, r: c, w: c, remote: remote}), nil
+	sc, err := t.crypto.Secure(ctx, c, initiator)
+	if err != nil {
+		return nil, fmt.Errorf("lan: handshake with %s: %w", c.RemoteAddr(), err)
+	}
+	if initiator {
+		if sc.RemoteID() != remote.ID {
+			return nil, fmt.Errorf("%w: dialed %s, reached %s", ErrWrongPeer, remote.ID, sc.RemoteID())
+		}
+	} else {
+		remote.ID = sc.RemoteID()
+		remote.Trusted = t.crypto.IsTrusted(remote.ID)
+	}
+	return t.track(&stream{conn: sc, sas: sc.SAS(), r: sc, w: sc, remote: remote}), nil
 }
 
 func (t *Transport) track(s *stream) *stream {
@@ -246,6 +266,7 @@ func (t *Transport) forget(s *stream) {
 // stream is one LAN connection. Close unblocks pending Read and Write.
 type stream struct {
 	conn   net.Conn
+	sas    contract.SAS
 	r      io.Reader
 	w      io.Writer
 	extra  []io.Closer // compression state etc., closed after conn
@@ -257,6 +278,10 @@ type stream struct {
 func (s *stream) Read(p []byte) (int, error)  { return s.r.Read(p) }
 func (s *stream) Write(p []byte) (int, error) { return s.w.Write(p) }
 func (s *stream) Remote() contract.Peer       { return s.remote }
+
+// SAS is the 4-glyph code of this stream's handshake. The manager shows
+// it in the offer dialog (type-assert for interface{ SAS() contract.SAS }).
+func (s *stream) SAS() contract.SAS { return s.sas }
 
 func (s *stream) Close() error {
 	var err error
