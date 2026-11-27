@@ -59,7 +59,7 @@ type Discovery struct {
 	self Beacon
 	kick chan struct{} // announce now (profile or port changed)
 
-	peers map[contract.DeviceID]contract.Peer
+	table *table
 }
 
 // New returns a Discovery for self. port is the LAN transport's TCP port
@@ -73,7 +73,7 @@ func New(self contract.Peer, port uint16, opts Options) *Discovery {
 		self: Beacon{ID: self.ID, Name: self.Name, Avatar: self.Avatar & 15, Port: port,
 			Nonce: binary.BigEndian.Uint64(nonce[:])},
 		kick:  make(chan struct{}, 1),
-		peers: map[contract.DeviceID]contract.Peer{},
+		table: newTable(self.ID, opts.TTL),
 	}
 }
 
@@ -123,14 +123,20 @@ func (d *Discovery) Run(ctx context.Context) error {
 
 	tick := time.NewTicker(d.opts.Every)
 	defer tick.Stop()
+	sweep := time.NewTicker(max(d.opts.TTL/7, 100*time.Millisecond))
+	defer sweep.Stop()
 	targets := d.targets()
+	d.announce(send, targets)
 	for {
-		d.announce(send, targets)
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-sweep.C:
+			d.table.expire()
 		case <-tick.C:
+			d.announce(send, targets)
 		case <-d.kick:
+			d.announce(send, targets)
 		}
 	}
 }
@@ -197,17 +203,8 @@ func (d *Discovery) recvLoop(c *net.UDPConn) {
 		if err != nil {
 			continue
 		}
-		d.observe(b, from.IP)
+		d.table.observe(b, from.IP)
 	}
-}
-
-func (d *Discovery) observe(b Beacon, ip net.IP) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if b.ID == d.self.ID {
-		return // our own beacon, looped back
-	}
-	d.peers[b.ID] = beaconPeer(b, ip, time.Now())
 }
 
 func beaconPeer(b Beacon, ip net.IP, now time.Time) contract.Peer {
