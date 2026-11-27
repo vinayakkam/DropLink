@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vinayakkam/droplink/internal/contract"
@@ -34,6 +36,12 @@ func New(chunkBytes int) *Engine {
 		chunkBytes = 4 << 10
 	}
 	return &Engine{chunk: chunkBytes, pool: newBufPool(chunkBytes)}
+}
+
+// Haver is optionally implemented by a Sink that keeps partial files. The
+// receiver asks it how much of each file it has, and the sender skips that.
+type Haver interface {
+	Have(f contract.FileMeta) int64
 }
 
 type answer struct {
@@ -89,31 +97,49 @@ func validateOffer(o *contract.Offer) error {
 
 // session holds per-transfer state shared by Send and Receive.
 type session struct {
-	e        *Engine
-	c        *conn
-	s        contract.Stream
-	offer    contract.Offer
-	progress func(contract.Progress)
-	done     int64
-	total    int64
+	e      *Engine
+	c      *conn
+	s      contract.Stream
+	offer  contract.Offer
+	rep    *reporter
+	local  *Control // our user's pause
+	remote *Control // the peer's pause, as last told
+	done   int64
+	file   int
 }
 
-func (ss *session) report(state contract.TransferState, file int, err error) {
-	if ss.progress == nil {
-		return
-	}
-	p := contract.Progress{ID: ss.offer.ID, State: state, File: file, Done: ss.done, Total: ss.total}
-	if err != nil {
-		p.Err = err.Error()
-	}
-	ss.progress(p)
+func (e *Engine) newSession(ctx context.Context, s contract.Stream, progress func(contract.Progress)) *session {
+	ss := &session{e: e, c: newConn(s), s: s, local: controlFrom(ctx), remote: NewControl()}
+	ss.rep = newReporter(progress, "", 0)
+	return ss
 }
 
-// fail tells the peer why we stop (best effort) and returns err.
+func (ss *session) setOffer(o contract.Offer) {
+	ss.offer = o
+	ss.rep.id, ss.rep.total = o.ID, o.TotalSize()
+}
+
+func (ss *session) state() contract.TransferState {
+	if ss.local.Paused() || ss.remote.Paused() {
+		return contract.StatePaused
+	}
+	return contract.StateActive
+}
+
+func (ss *session) report(state contract.TransferState, err error, force bool) {
+	ss.rep.emit(state, ss.file, ss.done, err, force)
+}
+
+// fail tells the peer why we stop (best effort), reports it and returns err.
 func (ss *session) fail(err error) error {
 	if !errors.Is(err, ErrRemote) && !errors.Is(err, ErrCanceled) {
 		_ = ss.c.writeFrame(tError, []byte(err.Error()))
 	}
+	state := contract.StateFailed
+	if errors.Is(err, ErrCanceled) {
+		state = contract.StateCancelled
+	}
+	ss.report(state, err, true)
 	return err
 }
 
@@ -125,6 +151,76 @@ func (ss *session) remoteErr(t byte, n int) error {
 	}
 	msg, _ := ss.c.readControl(min(n, 1024))
 	return fmt.Errorf("%w: %s", ErrRemote, msg)
+}
+
+// nextFrame reads the next frame header, applying the peer's PAUSE and
+// RESUME on the way, and turning CANCEL and ERROR into errors.
+func (ss *session) nextFrame() (byte, int, error) {
+	for {
+		t, n, err := ss.c.readHeader()
+		if err != nil {
+			return 0, 0, err
+		}
+		switch t {
+		case tPause, tResume:
+			if err := ss.c.skip(n); err != nil {
+				return 0, 0, err
+			}
+			if t == tPause {
+				ss.remote.Pause()
+			} else {
+				ss.remote.Resume()
+			}
+			ss.report(ss.state(), nil, true)
+		case tCancel, tError:
+			return 0, 0, ss.remoteErr(t, n)
+		default:
+			return t, n, nil
+		}
+	}
+}
+
+// relayPause tells the peer whenever our user pauses or resumes, until
+// stop is closed. It is the only extra goroutine per transfer.
+func (ss *session) relayPause(stop <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
+	sent := false
+	for {
+		paused, changed := ss.local.watch()
+		if paused != sent {
+			t := tResume
+			if paused {
+				t = tPause
+			}
+			if ss.c.writeFrame(t, nil) != nil {
+				return
+			}
+			sent = paused
+			ss.report(ss.state(), nil, true)
+		}
+		select {
+		case <-changed:
+		case <-stop:
+			return
+		}
+	}
+}
+
+// waitRunning blocks while either side is paused.
+func (ss *session) waitRunning(ctx context.Context) error {
+	for {
+		lp, lc := ss.local.watch()
+		rp, rc := ss.remote.watch()
+		if !lp && !rp {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-lc:
+		case <-rc:
+		}
+	}
 }
 
 // closeOnCancel closes the stream when ctx ends, which unblocks any Read
@@ -142,70 +238,103 @@ func closeOnCancel(ctx context.Context, c *conn, s contract.Stream) (stop func()
 	})
 }
 
-// Send offers o and streams its files from src.
+// Send offers o and streams its files from src. A Control attached with
+// WithControl pauses and resumes it; canceling ctx cancels it on both ends.
 func (e *Engine) Send(ctx context.Context, s contract.Stream, o contract.Offer, src contract.Source, progress func(contract.Progress)) (err error) {
-	ss := &session{e: e, c: newConn(s), s: s, offer: o, progress: progress, total: o.TotalSize()}
+	ss := e.newSession(ctx, s, progress)
 	defer s.Close()
 	stop := closeOnCancel(ctx, ss.c, s)
 	defer stop()
 	defer func() { err = ctxErr(ctx, err) }()
 
-	if err := validateOffer(&ss.offer); err != nil {
+	if err := validateOffer(&o); err != nil {
 		return err
 	}
-	js, err := json.Marshal(ss.offer)
+	ss.setOffer(o)
+	js, err := json.Marshal(o)
 	if err != nil {
 		return err
 	}
 	if err := ss.c.writeFrame(tOffer, js); err != nil {
 		return fmt.Errorf("send offer: %w", err)
 	}
-	ss.report(contract.StateOffered, 0, nil)
+	ss.report(contract.StateOffered, nil, true)
 
 	ans, err := ss.readAnswer()
 	if err != nil {
-		return err
+		return ss.fail(err)
 	}
 	if !ans.Accept {
-		ss.report(contract.StateRejected, 0, ErrRejected)
+		ss.report(contract.StateRejected, ErrRejected, true)
 		return ErrRejected
 	}
-	ss.report(contract.StateActive, 0, nil)
+	for _, off := range ans.Offsets {
+		ss.done += off
+	}
+	ss.report(ss.state(), nil, true)
+
+	// From here on the peer may send PAUSE/RESUME/CANCEL/ERROR at any
+	// time and finally DONE, so one goroutine reads while this one writes.
+	run, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	var wg sync.WaitGroup
+	stopRelay := make(chan struct{})
+	result := make(chan error, 1)
+	wg.Add(2)
+	go ss.relayPause(stopRelay, &wg)
+	go func() {
+		defer wg.Done()
+		t, _, err := ss.nextFrame()
+		if err == nil && t != tDone {
+			err = fmt.Errorf("%w: frame %d while sending", ErrProtocol, t)
+		}
+		if err != nil {
+			cancel(err)
+		}
+		result <- err
+	}()
+	defer func() {
+		close(stopRelay)
+		_ = s.Close() // unblocks the reader if we fail first
+		wg.Wait()
+	}()
 
 	buf := e.pool.get()
 	defer e.pool.put(buf)
-	for i, f := range ss.offer.Files {
-		if err := ss.sendFile(i, f, src, *buf); err != nil {
-			ss.report(contract.StateFailed, i, err)
+	for i, f := range o.Files {
+		ss.file = i
+		off := int64(0)
+		if len(ans.Offsets) > 0 {
+			off = ans.Offsets[i]
+		}
+		if err := ss.sendFile(run, f, off, src, *buf); err != nil {
+			if c := context.Cause(run); c != nil && !errors.Is(c, context.Canceled) {
+				err = c // the peer's reason beats our broken pipe
+			}
 			return ss.fail(err)
 		}
 	}
 	if err := ss.c.writeFrame(tDone, nil); err != nil {
-		return err
+		return ss.fail(err)
 	}
-	// Wait for the receiver to confirm every file is committed.
-	t, n, err := ss.c.readHeader()
-	if err != nil {
-		return fmt.Errorf("wait for done: %w", err)
-	}
-	if t != tDone {
-		if t == tCancel || t == tError {
-			return ss.remoteErr(t, n)
+	select {
+	case err := <-result:
+		if err != nil {
+			return ss.fail(err)
 		}
-		return fmt.Errorf("%w: frame %d instead of DONE", ErrProtocol, t)
+	case <-run.Done():
+		return ss.fail(context.Cause(run))
 	}
-	ss.report(contract.StateDone, len(ss.offer.Files), nil)
+	ss.file = len(o.Files)
+	ss.report(contract.StateDone, nil, true)
 	return nil
 }
 
 func (ss *session) readAnswer() (answer, error) {
 	var ans answer
-	t, n, err := ss.c.readHeader()
+	t, n, err := ss.nextFrame()
 	if err != nil {
 		return ans, fmt.Errorf("wait for answer: %w", err)
-	}
-	if t == tCancel || t == tError {
-		return ans, ss.remoteErr(t, n)
 	}
 	if t != tAnswer {
 		return ans, fmt.Errorf("%w: frame %d instead of ANSWER", ErrProtocol, t)
@@ -228,7 +357,7 @@ func (ss *session) readAnswer() (answer, error) {
 	return ans, nil
 }
 
-func (ss *session) sendFile(i int, f contract.FileMeta, src contract.Source, buf []byte) error {
+func (ss *session) sendFile(ctx context.Context, f contract.FileMeta, off int64, src contract.Source, buf []byte) error {
 	r, err := src.Open(f)
 	if err != nil {
 		return fmt.Errorf("open %q: %w", f.Path, err)
@@ -236,8 +365,18 @@ func (ss *session) sendFile(i int, f contract.FileMeta, src contract.Source, buf
 	defer r.Close()
 
 	h := sha256.New()
+	if off > 0 {
+		// The checksum covers the whole file, so hash the bytes the
+		// receiver already has without sending them.
+		if err := hashPrefix(h, r, off, buf[headerLen:]); err != nil {
+			return fmt.Errorf("read %q: %w", f.Path, err)
+		}
+	}
 	chunk := ss.e.chunk
-	for remaining := f.Size; remaining > 0; {
+	for remaining := f.Size - off; remaining > 0; {
+		if err := ss.waitRunning(ctx); err != nil {
+			return err
+		}
 		n := int(min(int64(chunk), remaining))
 		if _, err := io.ReadFull(r, buf[headerLen:headerLen+n]); err != nil {
 			return fmt.Errorf("read %q: %w (file changed while sending?)", f.Path, err)
@@ -248,21 +387,36 @@ func (ss *session) sendFile(i int, f contract.FileMeta, src contract.Source, buf
 		}
 		remaining -= int64(n)
 		ss.done += int64(n)
-		ss.report(contract.StateActive, i, nil)
+		ss.report(contract.StateActive, nil, false)
 	}
 	var sum [sha256.Size]byte
 	return ss.c.writeFrame(tFileEnd, h.Sum(sum[:0]))
 }
 
-// Receive reads an offer, asks accept, and stores the files into dst.
+// hashPrefix feeds the first n bytes of r into h using buf.
+func hashPrefix(h hash.Hash, r io.Reader, n int64, buf []byte) error {
+	for n > 0 {
+		k := int(min(int64(len(buf)), n))
+		if _, err := io.ReadFull(r, buf[:k]); err != nil {
+			return err
+		}
+		h.Write(buf[:k])
+		n -= int64(k)
+	}
+	return nil
+}
+
+// Receive reads an offer, asks accept, and stores the files into dst. If
+// dst implements Haver, files it already partly has resume where they
+// stopped.
 func (e *Engine) Receive(ctx context.Context, s contract.Stream, accept func(contract.Offer) bool, dst contract.Sink, progress func(contract.Progress)) (o contract.Offer, err error) {
-	ss := &session{e: e, c: newConn(s), s: s, progress: progress}
+	ss := e.newSession(ctx, s, progress)
 	defer s.Close()
 	stop := closeOnCancel(ctx, ss.c, s)
 	defer stop()
 	defer func() { err = ctxErr(ctx, err) }()
 
-	t, n, err := ss.c.readHeader()
+	t, n, err := ss.nextFrame()
 	if err != nil {
 		return o, fmt.Errorf("wait for offer: %w", err)
 	}
@@ -273,56 +427,74 @@ func (e *Engine) Receive(ctx context.Context, s contract.Stream, accept func(con
 	if err != nil {
 		return o, err
 	}
-	if err := json.Unmarshal(b, &ss.offer); err != nil {
+	if err := json.Unmarshal(b, &o); err != nil {
 		return o, ss.fail(fmt.Errorf("%w: offer: %v", ErrProtocol, err))
 	}
-	if err := validateOffer(&ss.offer); err != nil {
-		return ss.offer, ss.fail(err)
+	if err := validateOffer(&o); err != nil {
+		return o, ss.fail(err)
 	}
-	o = ss.offer
-	ss.total = o.TotalSize()
-	ss.report(contract.StateOffered, 0, nil)
+	ss.setOffer(o)
+	ss.report(contract.StateOffered, nil, true)
 
 	if !accept(o) {
 		js, _ := json.Marshal(answer{Accept: false})
 		_ = ss.c.writeFrame(tAnswer, js)
-		ss.report(contract.StateRejected, 0, ErrRejected)
+		ss.report(contract.StateRejected, ErrRejected, true)
 		return o, ErrRejected
 	}
-	js, _ := json.Marshal(answer{Accept: true})
-	if err := ss.c.writeFrame(tAnswer, js); err != nil {
-		return o, err
+	ans := answer{Accept: true}
+	if hv, ok := dst.(Haver); ok {
+		ans.Offsets = make([]int64, len(o.Files))
+		for i, f := range o.Files {
+			ans.Offsets[i] = min(max(hv.Have(f), 0), f.Size)
+			ss.done += ans.Offsets[i]
+		}
 	}
-	ss.report(contract.StateActive, 0, nil)
+	js, _ := json.Marshal(ans)
+	if err := ss.c.writeFrame(tAnswer, js); err != nil {
+		return o, ss.fail(err)
+	}
+	ss.report(ss.state(), nil, true)
+
+	var wg sync.WaitGroup
+	stopRelay := make(chan struct{})
+	wg.Add(1)
+	go ss.relayPause(stopRelay, &wg)
+	defer func() {
+		close(stopRelay)
+		wg.Wait()
+	}()
 
 	buf := e.pool.get()
 	defer e.pool.put(buf)
 	for i, f := range o.Files {
-		if err := ss.recvFile(i, f, dst, *buf); err != nil {
-			ss.report(contract.StateFailed, i, err)
+		ss.file = i
+		off := int64(0)
+		if ans.Offsets != nil {
+			off = ans.Offsets[i]
+		}
+		if err := ss.recvFile(f, off, dst, *buf); err != nil {
 			return o, ss.fail(err)
 		}
 	}
 
-	t, n, err = ss.c.readHeader()
+	t, _, err = ss.nextFrame()
 	if err != nil {
-		return o, err
+		return o, ss.fail(err)
 	}
 	if t != tDone {
-		if t == tCancel || t == tError {
-			return o, ss.remoteErr(t, n)
-		}
 		return o, ss.fail(fmt.Errorf("%w: frame %d instead of DONE", ErrProtocol, t))
 	}
 	if err := ss.c.writeFrame(tDone, nil); err != nil {
-		return o, err
+		return o, ss.fail(err)
 	}
-	ss.report(contract.StateDone, len(o.Files), nil)
+	ss.file = len(o.Files)
+	ss.report(contract.StateDone, nil, true)
 	return o, nil
 }
 
-func (ss *session) recvFile(i int, f contract.FileMeta, dst contract.Sink, buf []byte) error {
-	w, _, err := dst.Open(f)
+func (ss *session) recvFile(f contract.FileMeta, off int64, dst contract.Sink, buf []byte) error {
+	w, have, err := dst.Open(f)
 	if err != nil {
 		return fmt.Errorf("store %q: %w", f.Path, err)
 	}
@@ -332,11 +504,23 @@ func (ss *session) recvFile(i int, f contract.FileMeta, dst contract.Sink, buf [
 			_ = w.Close()
 		}
 	}()
+	if have != off {
+		return fmt.Errorf("%w: sink has %d bytes of %q, answered %d", ErrProtocol, have, f.Path, off)
+	}
 
 	h := sha256.New()
-	var got int64
+	if have > 0 {
+		ra, ok := w.(io.ReaderAt)
+		if !ok {
+			return fmt.Errorf("store %q: sink cannot be read back to resume", f.Path)
+		}
+		if err := hashPrefix(h, io.NewSectionReader(ra, 0, have), have, buf); err != nil {
+			return fmt.Errorf("rehash %q: %w", f.Path, err)
+		}
+	}
+	got := have
 	for {
-		t, n, err := ss.c.readHeader()
+		t, n, err := ss.nextFrame()
 		if err != nil {
 			return err
 		}
@@ -355,12 +539,12 @@ func (ss *session) recvFile(i int, f contract.FileMeta, dst contract.Sink, buf [
 			}
 			got += int64(n)
 			ss.done += int64(n)
-			ss.report(contract.StateActive, i, nil)
+			ss.report(ss.state(), nil, false)
 		case tFileEnd:
 			if n != sha256.Size || got != f.Size {
 				return fmt.Errorf("%w: %q ended at %d of %d bytes", ErrProtocol, f.Path, got, f.Size)
 			}
-			var want, have [sha256.Size]byte
+			var want, sum [sha256.Size]byte
 			if _, err := io.ReadFull(ss.c.rw, want[:]); err != nil {
 				return err
 			}
@@ -368,13 +552,11 @@ func (ss *session) recvFile(i int, f contract.FileMeta, dst contract.Sink, buf [
 			if err := w.Close(); err != nil {
 				return fmt.Errorf("close %q: %w", f.Path, err)
 			}
-			if !bytes.Equal(h.Sum(have[:0]), want[:]) {
+			if !bytes.Equal(h.Sum(sum[:0]), want[:]) {
 				_ = dst.Abort(f, ErrCorrupt)
 				return fmt.Errorf("%w: %q", ErrCorrupt, f.Path)
 			}
 			return dst.Commit(f)
-		case tCancel, tError:
-			return ss.remoteErr(t, n)
 		default:
 			return fmt.Errorf("%w: frame %d inside %q", ErrProtocol, t, f.Path)
 		}
@@ -383,7 +565,7 @@ func (ss *session) recvFile(i int, f contract.FileMeta, dst contract.Sink, buf [
 
 // ctxErr reports cancellation instead of the I/O error it caused.
 func ctxErr(ctx context.Context, err error) error {
-	if err != nil && ctx.Err() != nil && !errors.Is(err, ErrRejected) {
+	if err != nil && ctx.Err() != nil && !errors.Is(err, ErrRejected) && !errors.Is(err, ErrCanceled) {
 		return fmt.Errorf("%w: %w", ErrCanceled, ctx.Err())
 	}
 	return err
