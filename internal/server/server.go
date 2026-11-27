@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -138,13 +139,19 @@ func (s *Server) hostCheck(next http.Handler) http.Handler {
 func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && slices.Contains(s.cfg.Origins, origin) {
+		if origin != "" && (slices.Contains(s.cfg.Origins, origin) || loopbackOrigin(origin)) {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", origin)
 			h.Set("Vary", "Origin")
 			h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			h.Set("Access-Control-Max-Age", "600")
+			// Chromium (WebView2) asks before a page may reach a loopback
+			// address (Private Network Access); without this the UI's fetch
+			// fails with "Failed to fetch".
+			if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+				h.Set("Access-Control-Allow-Private-Network", "true")
+			}
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -152,6 +159,18 @@ func (s *Server) cors(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// loopbackOrigin accepts pages served from this machine, such as the
+// Tauri dev server (http://127.0.0.1:1430 under `tauri dev`). CORS only
+// lets such a page read responses; it still needs the per-run token,
+// which is never shared, to get anything.
+func loopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Path != "" {
+		return false
+	}
+	return config.IsLoopback(strings.Trim(u.Hostname(), "[]"))
 }
 
 // WriteJSON writes v with status. Handlers in later branches use it too.

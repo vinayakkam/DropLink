@@ -162,3 +162,46 @@ func TestDevSessionOnlyWithWebDir(t *testing.T) {
 		t.Fatalf("static index: status = %d", rec.Code)
 	}
 }
+
+func TestCORSForDesktopWindow(t *testing.T) {
+	h := newTestServer(t, nil).Handler()
+	for origin, want := range map[string]bool{
+		"http://127.0.0.1:1430":   true, // the window under `tauri dev`
+		"http://localhost:1430":   true,
+		"http://[::1]:5173":       true,
+		"http://tauri.localhost":  true, // installed builds on Windows
+		"tauri://localhost":       true, // installed builds on macOS/Linux
+		"http://evil.example":     false,
+		"http://127.0.0.1.nip.io": false,
+		"file://":                 false,
+		"http://127.0.0.1:1430/x": false,
+	} {
+		rec := do(h, "OPTIONS", "/api/info", map[string]string{"Origin": origin})
+		got := rec.Header().Get("Access-Control-Allow-Origin") == origin
+		if got != want {
+			t.Errorf("origin %q allowed = %v, want %v", origin, got, want)
+		}
+	}
+}
+
+func TestPrivateNetworkPreflight(t *testing.T) {
+	h := newTestServer(t, nil).Handler()
+	rec := do(h, "OPTIONS", "/api/info", map[string]string{
+		"Origin":                                 "http://tauri.localhost",
+		"Access-Control-Request-Private-Network": "true",
+	})
+	if rec.Code != http.StatusNoContent || rec.Header().Get("Access-Control-Allow-Private-Network") != "true" {
+		t.Fatalf("status %d, PNA header %q", rec.Code, rec.Header().Get("Access-Control-Allow-Private-Network"))
+	}
+	rec = do(h, "OPTIONS", "/api/info", map[string]string{"Origin": "http://tauri.localhost"})
+	if rec.Header().Get("Access-Control-Allow-Private-Network") != "" {
+		t.Fatal("PNA header sent without being asked")
+	}
+	rec = do(h, "OPTIONS", "/api/info", map[string]string{
+		"Origin":                                 "http://evil.example",
+		"Access-Control-Request-Private-Network": "true",
+	})
+	if rec.Header().Get("Access-Control-Allow-Private-Network") != "" {
+		t.Fatal("PNA allowed for a foreign origin")
+	}
+}
