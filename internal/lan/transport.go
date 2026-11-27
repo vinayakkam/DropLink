@@ -19,6 +19,9 @@ import (
 // ErrClosed is returned by a closed Transport.
 var ErrClosed = errors.New("lan: transport closed")
 
+// closeGrace bounds how long Close spends ending a compressed frame.
+const closeGrace = 200 * time.Millisecond
+
 // ErrWrongPeer means the device that answered is not the one we dialed:
 // its identity key does not match the ID discovery reported.
 var ErrWrongPeer = errors.New("lan: peer identity mismatch")
@@ -296,6 +299,7 @@ type stream struct {
 
 	compressed bool
 	closed     chan struct{} // closed by Close; ends speed-limit waits
+	finish     func()        // flushes trailing protocol state before close
 }
 
 func (s *stream) Read(p []byte) (int, error)  { return s.r.Read(p) }
@@ -311,6 +315,10 @@ func (s *stream) Close() error {
 	s.once.Do(func() {
 		if s.closed != nil {
 			close(s.closed)
+		}
+		if s.finish != nil {
+			_ = s.conn.SetWriteDeadline(time.Now().Add(closeGrace))
+			s.finish()
 		}
 		err = s.conn.Close()
 		for _, c := range s.extra {
