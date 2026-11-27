@@ -362,47 +362,70 @@ func (m *Manager) receive(s contract.Stream) {
 	ctx, cancel := context.WithCancel(m.ctx)
 	defer cancel()
 	ctl := engine.NewControl()
-	var tr *transfer
+	// The engine may stop waiting on accept (the sender left) while accept
+	// still runs, so tr is shared: amu guards it, and once ended is set
+	// accept adds no transfer and marks nothing as waiting.
+	var (
+		amu   sync.Mutex
+		tr    *transfer
+		ended bool
+	)
+	current := func() *transfer { amu.Lock(); defer amu.Unlock(); return tr }
 	accept := func(o contract.Offer) bool {
 		o.From = remote // never trust the sender's own description of itself
 		m.mu.Lock()
 		old, resumed := m.transfers[o.ID]
 		again := m.accepted[o.ID] && resumed && !old.outgoing && old.peer.ID == remote.ID
 		m.mu.Unlock()
+		amu.Lock()
+		if ended {
+			amu.Unlock()
+			return false
+		}
 		if again { // the sender retried after a drop: carry on
 			tr = old
 			m.mu.Lock()
 			tr.ctl, tr.cancel, tr.state, tr.err = ctl, cancel, contract.StateActive, ""
 			m.mu.Unlock()
+			amu.Unlock()
 			return true
 		}
-		tr = m.add(&transfer{offer: o, peer: remote, state: contract.StateOffered, total: o.TotalSize(),
+		t := m.add(&transfer{offer: o, peer: remote, state: contract.StateOffered, total: o.TotalSize(),
 			sas: sas, ctl: ctl, cancel: cancel, started: time.Now(), decision: make(chan bool, 1), sink: sink})
-		if remote.Trusted && m.opts.AutoAcceptTrusted() {
-			m.decide(tr, true)
+		tr = t
+		auto := remote.Trusted && m.opts.AutoAcceptTrusted()
+		if !auto {
+			m.mu.Lock()
+			t.waiting = true
+			m.mu.Unlock()
+		}
+		amu.Unlock()
+		if auto {
+			m.decide(t, true)
 			return true
 		}
-		m.mu.Lock()
-		tr.waiting = true
-		m.mu.Unlock()
-		m.emitTransfer(tr)
+		m.emitTransfer(t)
 		timer := time.NewTimer(m.opts.DecisionTimeout)
 		defer timer.Stop()
 		select {
-		case ok := <-tr.decision:
+		case ok := <-t.decision:
 			return ok
 		case <-timer.C:
-			m.decide(tr, false)
+			m.decide(t, false)
 			return false
 		case <-ctx.Done():
 			return false
 		}
 	}
 	_, err = m.d.Engine.Receive(engine.WithControl(ctx, ctl), s, accept, sink, func(p contract.Progress) {
-		if tr != nil {
-			m.progress(tr, p)
+		if t := current(); t != nil {
+			m.progress(t, p)
 		}
 	})
+	cancel() // ends an accept still waiting on the user
+	amu.Lock()
+	ended = true // accept no longer touches tr
+	amu.Unlock()
 	if tr == nil {
 		return // the stream failed before an offer
 	}
