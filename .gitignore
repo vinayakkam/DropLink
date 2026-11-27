@@ -16,3 +16,6 @@ desktop/src-tauri/binaries/*
 .env
 .task/
 graphify-out/
+
+# Release builds (tools/release)
+/dist/
