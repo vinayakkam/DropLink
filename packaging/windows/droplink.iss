@@ -1,4 +1,4 @@
-; DropLink installer (Inno Setup 6.6 or later). Built by tools/release:
+; DropLink installer (Inno Setup 6.7 or later). Built by tools/release:
 ;
 ;   ISCC /DAppVersion=1.2.3 /DFileVersion=1.2.3.0 /DStageDir=<stage> /DOutputDir=<out> packaging\windows\droplink.iss
 ;
@@ -57,15 +57,15 @@ SolidCompression=yes
 
 ; The look: Windows' light or dark mode, DropLink's pixel scene behind
 ; every page and the app icon on a tile, as in the app.
-WizardStyle=modern dynamic
+WizardStyle=modern dynamic polar hidebevels includetitlebar
+WizardSizePercent=150,150
+DisableWelcomePage=no
 WizardBackImageFile={#Art}back-light.png,{#Art}back-light@2x.png
 WizardBackImageFileDynamicDark={#Art}back-dark.png,{#Art}back-dark@2x.png
 WizardBackColor=#eef9fc
 WizardBackColorDynamicDark=#05070d
 WizardImageFile={#Art}welcome-light.png
 WizardImageFileDynamicDark={#Art}welcome-dark.png
-WizardImageBackColor=#eef9fc
-WizardImageBackColorDynamicDark=#05070d
 WizardSmallImageFile={#Art}small-light.png,{#Art}small-light@2x.png
 WizardSmallImageFileDynamicDark={#Art}small-dark.png,{#Art}small-dark@2x.png
 WizardSmallImageBackColor=#eef9fc
@@ -76,7 +76,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to DropLink
-WelcomeLabel2=DropLink sends files, folders and text straight from one device to another, over your local network or across the internet. No server ever stores your files.%n%nIt installs for you alone, with no administrator rights, and keeps itself up to date.%n%nClick Next to continue, or Cancel to exit Setup.
+WelcomeLabel2=DropLink sends files, folders and text straight from one device to another, over your local network or across the internet. No server ever stores your files.%n%nIt installs for you alone, with no administrator rights, and keeps itself up to date.
 FinishedHeadingLabel=DropLink is ready for launch
 
 [Tasks]
@@ -112,6 +112,16 @@ Filename: "{app}\droplink.exe"; Flags: nowait; Check: RelaunchRequested
 Type: dirifempty; Name: "{app}"
 
 [Code]
+// Short text boxes, so the scene shows below them as on the other pages.
+procedure InitializeWizard;
+begin
+  WizardForm.LicenseMemo.Height := ScaleY(150);
+  WizardForm.LicenseAcceptedRadio.Top := WizardForm.LicenseMemo.Top + WizardForm.LicenseMemo.Height + ScaleY(10);
+  WizardForm.LicenseNotAcceptedRadio.Top := WizardForm.LicenseAcceptedRadio.Top + ScaleY(22);
+  WizardForm.ReadyMemo.Height := ScaleY(96);
+  WizardForm.ReadyMemo.ScrollBars := ssNone;
+end;
+
 function RelaunchRequested: Boolean;
 begin
   Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
