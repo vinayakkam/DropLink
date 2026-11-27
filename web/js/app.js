@@ -3,9 +3,11 @@
 // same store.
 import { api, connect } from "./api.js";
 import { reducedMotion, runBoot } from "./bootseq.js";
+import { connectEvents } from "./events.js";
 import { mountScenes } from "./pixel/mount.js";
 import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
+import { mountHome } from "./ui/home.js";
 import { showView, watchRoute } from "./views.js";
 
 export const store = createStore({
@@ -15,6 +17,8 @@ export const store = createStore({
   selected: new Set(),
   transfers: [],
   dropHover: false,
+  room: null,
+  link: "down",
 });
 
 initTitlebar(document);
@@ -34,6 +38,7 @@ store.select(
 );
 
 mountScenes(document, store);
+export const home = mountHome(document, store);
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });
@@ -42,6 +47,7 @@ try {
   await connect();
   const info = await api("/api/info");
   store.set({ engine: { state: "online", version: info.version, device: info.device, features: info.features ?? [] } });
+  await connectEvents(store);
   await boot.finish(true, `ENGINE ONLINE · ${info.device}`);
   setTimeout(() => (bootEl.dataset.done = ""), reducedMotion() ? 0 : 350);
   // Remove it outright once the fade is over, even if a throttled

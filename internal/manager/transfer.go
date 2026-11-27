@@ -20,7 +20,7 @@ type transfer struct {
 	total    int64
 	bps      float64
 	err      string
-	sas      []uint8
+	sas      []int
 	started  time.Time
 	ended    time.Time
 
@@ -53,7 +53,7 @@ type View struct {
 	Total       int64                  `json:"total"`
 	BytesPerSec float64                `json:"bytesPerSec"`
 	Error       string                 `json:"error,omitempty"`
-	SAS         []uint8                `json:"sas,omitempty"`
+	SAS         []int                  `json:"sas,omitempty"` // []uint8 would encode as base64
 	SavedTo     string                 `json:"savedTo,omitempty"`
 	StartedAt   time.Time              `json:"startedAt"`
 	EndedAt     *time.Time             `json:"endedAt,omitempty"`

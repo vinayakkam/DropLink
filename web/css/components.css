@@ -1,0 +1,222 @@
+/* Components: avatars, cargo rows, pixel progress bars, modals, toasts,
+   form rows. */
+
+.row-tags {
+  display: flex;
+  gap: var(--s1);
+}
+
+/* Tiny livery swatch matching the radar ship (hull color by avatar >> 2). */
+.avatar {
+  width: calc(var(--px) * 5);
+  height: calc(var(--px) * 5);
+  background: var(--cyan);
+  box-shadow: 0 0 var(--s1) currentColor;
+  clip-path: polygon(50% 0, 100% 100%, 50% 75%, 0 100%);
+}
+.avatar--4, .avatar--5, .avatar--6, .avatar--7 { background: var(--magenta); }
+.avatar--8, .avatar--9, .avatar--10, .avatar--11 { background: var(--amber); }
+.avatar--12, .avatar--13, .avatar--14, .avatar--15 { background: var(--lime); }
+
+/* Cargo log rows */
+.cargo {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s2);
+  background: var(--void-2);
+  box-shadow: inset 0 0 0 var(--px) var(--panel-edge);
+}
+
+.cargo__head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.cargo__dir {
+  color: var(--accent);
+}
+
+.cargo--failed .cargo__dir,
+.cargo--rejected .cargo__dir {
+  color: var(--danger);
+}
+
+.cargo__actions {
+  display: flex;
+  gap: var(--s1);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cargo__actions:empty {
+  display: none;
+}
+
+.btn--sm {
+  padding: var(--s1) var(--s2);
+  font-size: var(--fs-xs);
+}
+
+.tag--state-active { background: var(--cyan); }
+.tag--state-paused { background: var(--amber); }
+.tag--state-done { background: var(--lime); }
+.tag--state-failed,
+.tag--state-rejected,
+.tag--state-cancelled { background: var(--danger); }
+.tag--state-offered,
+.tag--state-queued { background: var(--ink-faint); color: var(--ink); }
+
+/* Pixel progress bar: stepped segments, not a smooth gradient. */
+.bar {
+  height: calc(var(--px) * 4);
+  background: var(--void);
+  box-shadow: inset 0 0 0 var(--px) var(--panel-edge);
+  padding: var(--px);
+}
+
+.bar__fill {
+  display: block;
+  height: 100%;
+  width: var(--pct, 0%);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--accent) 0 calc(var(--px) * 3),
+    transparent calc(var(--px) * 3) calc(var(--px) * 4)
+  );
+  box-shadow: 0 0 var(--s2) var(--accent-glow);
+  transition: width 200ms steps(4);
+}
+
+.cargo--paused .bar__fill {
+  background: repeating-linear-gradient(90deg, var(--amber) 0 calc(var(--px) * 3), transparent calc(var(--px) * 3) calc(var(--px) * 4));
+}
+
+/* Modals */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 7, 13, 0.72);
+}
+
+.modal {
+  width: min(460px, calc(100vw - 32px));
+  display: grid;
+  gap: var(--s3);
+  user-select: text;
+}
+
+.modal__body {
+  display: grid;
+  gap: var(--s3);
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+.offer__from {
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+
+.offer__names {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.offer__sas {
+  display: grid;
+  justify-items: center;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+}
+
+.offer__sas canvas {
+  height: 28px;
+}
+
+.check {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  font-size: var(--fs-sm);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.check input {
+  accent-color: var(--accent);
+}
+
+/* Toasts */
+.toasts {
+  position: fixed;
+  right: var(--s4);
+  bottom: calc(var(--statusbar-h) + var(--s3));
+  z-index: 300;
+  display: grid;
+  gap: var(--s2);
+}
+
+.toast {
+  max-width: 360px;
+  padding: var(--s2) var(--s3);
+  font-size: var(--fs-sm);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 var(--px) var(--accent-dim);
+}
+
+.toast--error {
+  box-shadow: inset 0 0 0 var(--px) var(--danger);
+}
+
+.toast--warn {
+  box-shadow: inset 0 0 0 var(--px) var(--amber);
+}
+
+/* Form rows (settings, rooms) */
+.field {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--s3);
+  align-items: center;
+}
+
+.field__label {
+  font-size: var(--fs-sm);
+  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+}
+
+.field__hint {
+  grid-column: 2;
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+
+textarea.input {
+  resize: vertical;
+  font-family: var(--font);
+}
+
+.cargo__sas {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--fs-xs);
+}
+
+.cargo__sas .sas {
+  padding: var(--s1) var(--s2);
+}
+
+.cargo__sas canvas {
+  height: 14px;
+}

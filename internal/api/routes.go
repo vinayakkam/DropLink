@@ -196,19 +196,22 @@ func (h *handlers) trust(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength > 0 && !decode(w, r, &body) {
 		return
 	}
-	err := h.d.Crypto.Trust(contract.TrustedDevice{ID: contract.DeviceID(r.PathValue("id")), Name: body.Name})
-	if err != nil {
+	id := contract.DeviceID(r.PathValue("id"))
+	if err := h.d.Crypto.Trust(contract.TrustedDevice{ID: id, Name: body.Name}); err != nil {
 		server.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.d.Manager.PeerChanged(id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *handlers) untrust(w http.ResponseWriter, r *http.Request) {
-	if err := h.d.Crypto.Untrust(contract.DeviceID(r.PathValue("id"))); err != nil {
+	id := contract.DeviceID(r.PathValue("id"))
+	if err := h.d.Crypto.Untrust(id); err != nil {
 		server.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.d.Manager.PeerChanged(id)
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -266,7 +266,24 @@ func (m *Manager) runSend(tr *transfer, src contract.Source) {
 		m.finish(tr, contract.StateCancelled, ctx.Err())
 		return
 	}
-	err := resilience.Send(engine.WithControl(ctx, tr.ctl), m.opts.Retry, m.d.Router, m.d.Engine, tr.peer,
+	// Record the SAS of each stream we open, so the sender sees the same
+	// 4 glyphs as the receiver.
+	router := routerFunc(func(ctx context.Context, to contract.Peer) (contract.Stream, error) {
+		s, err := m.d.Router.Dial(ctx, to)
+		if err == nil {
+			if v, ok := s.(interface{ SAS() contract.SAS }); ok {
+				var sas []int
+				for _, g := range v.SAS() {
+					sas = append(sas, int(g))
+				}
+				m.mu.Lock()
+				tr.sas = sas
+				m.mu.Unlock()
+			}
+		}
+		return s, err
+	})
+	err := resilience.Send(engine.WithControl(ctx, tr.ctl), m.opts.Retry, router, m.d.Engine, tr.peer,
 		tr.offer, src, func(p contract.Progress) { m.progress(tr, p) })
 	m.finish(tr, finalState(err), err)
 }
@@ -313,10 +330,11 @@ func (m *Manager) receive(s contract.Stream) {
 		remote.Name, remote.Avatar = p.Name, p.Avatar
 	}
 	remote = m.decorate(remote)
-	var sas []uint8
+	var sas []int
 	if v, ok := s.(interface{ SAS() contract.SAS }); ok {
-		x := v.SAS()
-		sas = x[:]
+		for _, g := range v.SAS() {
+			sas = append(sas, int(g))
+		}
 	}
 	dir := ""
 	if m.opts.DownloadDir != nil {
@@ -413,9 +431,27 @@ func (m *Manager) Accept(id contract.TransferID, trust bool) error {
 		if err := m.d.Crypto.Trust(contract.TrustedDevice{ID: tr.peer.ID, Name: tr.peer.Name}); err != nil {
 			return err
 		}
+		m.mu.Lock()
+		tr.peer.Trusted = true
+		m.mu.Unlock()
+		m.PeerChanged(tr.peer.ID)
 	}
 	m.decide(tr, true)
 	return nil
+}
+
+// PeerChanged re-announces a peer after its trust changed.
+func (m *Manager) PeerChanged(id contract.DeviceID) {
+	if p, ok := m.findPeer(id); ok {
+		m.events.emit(Event{Type: "peer", Kind: string(contract.PeerUpdated), Peer: &p})
+	}
+}
+
+// routerFunc adapts a function to contract.Router.
+type routerFunc func(ctx context.Context, to contract.Peer) (contract.Stream, error)
+
+func (f routerFunc) Dial(ctx context.Context, to contract.Peer) (contract.Stream, error) {
+	return f(ctx, to)
 }
 
 // Reject answers a waiting offer with no.
