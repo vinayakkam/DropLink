@@ -4,6 +4,7 @@
 import { reducedMotion } from "../bootseq.js";
 import { createLoop } from "./loop.js";
 import { readPalette } from "./palette.js";
+import { bay } from "./scenes/bay.js";
 import { radar } from "./scenes/radar.js";
 import { starfield } from "./scenes/starfield.js";
 
@@ -37,6 +38,14 @@ export function mountScenes(doc, store) {
     }),
   );
 
+  mount("bay-canvas", (el) =>
+    bay(el, {
+      palette: getPalette,
+      progress: () => overallProgress(store.get().transfers ?? []),
+      hover: () => !!store.get().dropHover,
+    }),
+  );
+
   const ro = new ResizeObserver(() => {
     for (const m of mounted) m.scene.resize();
     loop.invalidate();
@@ -52,9 +61,28 @@ export function mountScenes(doc, store) {
   mo.observe(doc.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   store.subscribe((s, prev) => {
-    if (s.peers !== prev.peers || s.selected !== prev.selected) loop.invalidate();
+    if (s.peers !== prev.peers || s.selected !== prev.selected || s.transfers !== prev.transfers || s.dropHover !== prev.dropHover) {
+      loop.invalidate();
+    }
   });
 
   loop.start();
   return { loop, mount };
+}
+
+/**
+ * Overall progress of the transfers that are moving, 0..1, or null when
+ * none is (the bay drone then idles).
+ * @param {Array<{ state: string, done: number, total: number }>} transfers
+ */
+export function overallProgress(transfers) {
+  const moving = transfers.filter((x) => x.state === "active" || x.state === "paused");
+  if (!moving.length) return null;
+  let done = 0;
+  let total = 0;
+  for (const x of moving) {
+    done += x.done;
+    total += x.total;
+  }
+  return total > 0 ? Math.min(1, done / total) : 1;
 }

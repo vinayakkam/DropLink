@@ -13,6 +13,8 @@ export const store = createStore({
   route: { view: "home", query: {} },
   peers: [],
   selected: new Set(),
+  transfers: [],
+  dropHover: false,
 });
 
 initTitlebar(document);
@@ -42,6 +44,9 @@ try {
   store.set({ engine: { state: "online", version: info.version, device: info.device, features: info.features ?? [] } });
   await boot.finish(true, `ENGINE ONLINE · ${info.device}`);
   setTimeout(() => (bootEl.dataset.done = ""), reducedMotion() ? 0 : 350);
+  // Remove it outright once the fade is over, even if a throttled
+  // background tab never finishes the transition.
+  setTimeout(() => (bootEl.hidden = true), reducedMotion() ? 0 : 800);
 } catch (err) {
   store.set({ engine: { ...store.get().engine, state: "offline" } });
   await boot.finish(false, `ENGINE OFFLINE · ${err.message}`);
