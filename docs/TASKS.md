@@ -23,16 +23,29 @@ Two people, six branches each. Every branch is **4 feature commits + 1 test comm
 | 11 | `p2/webrtc` | Kashish | `p2/signaling` | p2/signaling | [p2-webrtc](tasks/p2-webrtc.md) |
 | 12 | `p2/resilience` | Kashish | `p2/webrtc` | p2/lan-transfer, p2/webrtc | [p2-resilience](tasks/p2-resilience.md) |
 
-- Each person's branches **stack**: a branch starts from the one before it, so nothing waits for a merge. Once a base is merged into `main`, start from `main` instead.
+- While the plan ran, each person's branches stacked. Every one is merged now, so new branches start from `main`.
 - P1 and P2 never wait for each other. Both build against `internal/contract` and its mocks in `internal/mock`.
 - Merge order into `main`: `p1/scaffold` first, then any order; each P2 branch only swaps its own line in `internal/app/providers.go`.
 
 ## Status
-| Branch | State |
+All 12 branches are merged into `main` (2026-11-27).
+
+| Branch | PR |
 |---|---|
-| `p1/scaffold` | done, not merged |
-| `p1/transfer-engine` | done, pushed |
-| everything else | not started |
+| `p1/scaffold` | #1 |
+| `p1/transfer-engine` | #2 |
+| `p2/crypto` | #3 |
+| `p2/lan-discovery` | #4 |
+| `p2/lan-transfer` | #5 |
+| `p2/signaling` | #6 |
+| `p2/webrtc` | #7 |
+| `p2/resilience` | #8 |
+| `p1/ui-shell` | #9 |
+| `p1/pixel-engine` | #10 |
+| `p1/ui-features` | #11 |
+| `p1/desktop-integration` | #12 |
+
+New work: add a task file in `docs/tasks/` and a row here before starting. Branches start from `main`.
 
 ## Ownership
 Every path has one owner. Ask the owner before editing their files.
