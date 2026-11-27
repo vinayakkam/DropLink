@@ -1,7 +1,8 @@
 # Builds DropLink's installers and attaches them to a GitHub release:
 #   Windows: the Inno Setup installer + latest.json, signed for self-update
-#   Linux:   .deb, .rpm and .AppImage, plus an AUR PKGBUILD (droplink-bin)
-#            built once in an Arch container to prove it works
+#   Linux:   .deb, .rpm and .AppImage, plus the Arch package
+#            (droplink-bin .pkg.tar.zst, built from an AUR PKGBUILD in an Arch
+#            container; the PKGBUILD and .SRCINFO are attached too)
 #
 # Runs when a v* tag is pushed (building that tag), or by hand (Actions >
 # release > Run workflow), which builds the branch it is run from and
@@ -147,10 +148,11 @@ jobs:
           mkdir -p out
           cp "$work/PKGBUILD" out/droplink-bin.PKGBUILD
           cp "$work/.SRCINFO" out/droplink-bin.SRCINFO
+          cp "$work"/droplink-bin-$v-1-x86_64.pkg.tar.zst out/
       - uses: actions/upload-artifact@v4
         with:
           name: arch
-          path: out/droplink-bin.*
+          path: out/droplink-bin*
           if-no-files-found: error
 
   publish:
