@@ -1,0 +1,152 @@
+/* CRT layer: scanlines, a soft vignette and phosphor glow over the whole
+   window. Pure CSS, no per-frame work; the flicker is the only animation
+   and it stops for reduced motion and while the app is idle. */
+
+.crt {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.crt::before {
+  /* Scanlines: one dark line every two art pixels. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) calc(var(--px) * 1),
+    rgba(0, 0, 0, 0.18) calc(var(--px) * 1),
+    rgba(0, 0, 0, 0.18) calc(var(--px) * 2)
+  );
+  mix-blend-mode: multiply;
+}
+
+.crt::after {
+  /* Vignette and a faint cyan bloom from the center. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(62, 242, 255, 0.045) 0%, rgba(0, 0, 0, 0) 55%),
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.55) 100%);
+  animation: crt-flicker 6s steps(1) infinite;
+}
+
+@keyframes crt-flicker {
+  0%, 100% { opacity: 1; }
+  48% { opacity: 0.92; }
+  49% { opacity: 1; }
+  77% { opacity: 0.96; }
+}
+
+/* Text and lines glow like phosphor. */
+.glow {
+  text-shadow: 0 0 var(--s2) var(--accent-glow);
+}
+
+html[data-still] .crt::after,
+html[data-motion="off"] .crt::after {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt::after {
+    animation: none;
+  }
+}
+
+/* Title bar: the window has no OS frame; this is the frame. */
+.titlebar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-h);
+  padding-left: var(--s3);
+  background: linear-gradient(180deg, var(--panel-2), var(--void-2));
+  box-shadow: 0 var(--px) 0 var(--panel-edge);
+  gap: var(--s3);
+}
+
+.titlebar__mark {
+  width: calc(var(--px) * 8);
+  height: calc(var(--px) * 8);
+  background:
+    linear-gradient(var(--cyan), var(--cyan)) 0 50% / 37.5% 25% no-repeat,
+    linear-gradient(var(--magenta), var(--magenta)) 100% 50% / 37.5% 25% no-repeat,
+    linear-gradient(var(--amber), var(--amber)) 50% 50% / 25% 25% no-repeat;
+  filter: drop-shadow(0 0 3px var(--accent-glow));
+}
+
+.titlebar__name {
+  font-size: var(--fs-sm);
+  letter-spacing: 0.24em;
+  color: var(--ink);
+}
+
+.titlebar__sector {
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  letter-spacing: 0.12em;
+}
+
+.titlebar__drag {
+  flex: 1;
+  align-self: stretch;
+}
+
+.titlebar__controls {
+  display: flex;
+  align-self: stretch;
+}
+
+.titlebar__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  width: 44px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.titlebar__btn:hover {
+  background: var(--panel-edge);
+  color: var(--ink);
+}
+
+.titlebar__btn--close:hover {
+  background: var(--danger);
+  color: var(--void);
+}
+
+/* Pixel glyphs for the window buttons, drawn with gradients. */
+.glyph {
+  width: calc(var(--px) * 5);
+  height: calc(var(--px) * 5);
+  display: block;
+}
+
+.glyph--min {
+  background: linear-gradient(currentColor, currentColor) 0 100% / 100% var(--px) no-repeat;
+}
+
+.glyph--max {
+  box-shadow: inset 0 0 0 var(--px) currentColor;
+}
+
+.glyph--close {
+  background:
+    linear-gradient(45deg, transparent 43%, currentColor 43%, currentColor 57%, transparent 57%),
+    linear-gradient(-45deg, transparent 43%, currentColor 43%, currentColor 57%, transparent 57%);
+}
+
+/* In a plain browser (task web) there is no window to control. */
+html:not([data-tauri]) .titlebar__controls {
+  display: none;
+}

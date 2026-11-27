@@ -6,12 +6,27 @@
   <title>DropLink</title>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/crt.css">
 </head>
 <body>
+  <header class="titlebar" data-tauri-drag-region>
+    <span class="titlebar__mark" aria-hidden="true"></span>
+    <span class="titlebar__name glow" data-tauri-drag-region>DROPLINK</span>
+    <span class="titlebar__sector" id="sector" data-tauri-drag-region>SECTOR: —</span>
+    <span class="titlebar__drag" data-tauri-drag-region></span>
+    <nav class="titlebar__controls" aria-label="Window">
+      <button class="titlebar__btn" data-win="min" title="Minimize"><span class="glyph glyph--min"></span></button>
+      <button class="titlebar__btn" data-win="max" title="Maximize"><span class="glyph glyph--max"></span></button>
+      <button class="titlebar__btn titlebar__btn--close" data-win="close" title="Close"><span class="glyph glyph--close"></span></button>
+    </nav>
+  </header>
+
   <main class="panel" style="margin: 48px auto; max-width: 420px">
     <div class="panel__label">DROPLINK <small>v0.1</small></div>
-    <p id="status" class="muted" data-state="starting">ENGINE: STARTING…</p>
+    <p id="status" class="muted glow" data-state="starting">ENGINE: STARTING…</p>
   </main>
+
+  <div class="crt" aria-hidden="true"></div>
   <script type="module" src="js/boot.js"></script>
 </body>
 </html>
