@@ -130,18 +130,31 @@ DropLink tries a direct path first and falls back to the relay only if nothing c
 
 A tampered or unsigned installer is never run, and the UI cannot point the shell at any other file. Set `DROPLINK_UPDATE_URL` to use another manifest (for a test server).
 
-**Linux / macOS.** Use the deb, AppImage or dmg from `task build`; updates come through your package manager for now.
+**Linux.** The releases page has `droplink-<version>-linux-amd64.deb` (`sudo apt install ./droplink-*.deb`) and `droplink-<version>-linux-amd64.AppImage` (`chmod +x`, then run it). Self-update is Windows-only for now: on Linux, install each new release yourself.
+
+**macOS.** No release build yet; `task build` makes a dmg on a Mac.
 
 ## Making a release
 
-There is no CI: releases are built and signed on the release machine.
+Releases are built by GitHub Actions (`.github/workflows/release.yml`), or by hand on a Windows machine.
 
 ```
 go run ./tools/release keygen     # once: creates ~/.droplink/update-signing.key
 ```
 `keygen` creates the release key and prints the public key, which goes into `internal/update/key.go`. **Back up the private key and never commit it**: without it, installed apps can no longer be updated.
 
-To release:
+**One-time setup for Actions.** Store the private key as the repository secret `DROPLINK_UPDATE_KEY`:
+```powershell
+Get-Content -Raw "$env:USERPROFILE\.droplink\update-signing.key" | gh secret set DROPLINK_UPDATE_KEY --repo vinayakkam/DropLink
+```
+
+**Release with Actions:**
+1. Bump `version` in `desktop/src-tauri/tauri.conf.json` (also `desktop/package.json` and `Cargo.toml`) and merge it into `main`.
+2. Tag and push: `git tag v1.2.3`, then `git push origin v1.2.3`.
+
+The workflow builds the Windows installer, signs `latest.json` with the secret key, builds the Linux `.deb` and `.AppImage`, and uploads them all to the `v1.2.3` release, creating it if needed. To rebuild an existing release's files from a branch, run it by hand (Actions → release → Run workflow) with that tag.
+
+**Release by hand (Windows):**
 1. Bump `version` in `desktop/src-tauri/tauri.conf.json` (also `desktop/package.json` and `Cargo.toml`).
 2. Run:
    ```
@@ -149,7 +162,7 @@ To release:
    ```
    This builds the release app and the installer, signs the installer into `dist/latest.json`, then asks before creating the public GitHub release `v<version>` with both files. `task installer` stops after the build, and `go run ./tools/release sign` / `publish` run the later steps on their own.
 
-Building the installer needs [Inno Setup](https://jrsoftware.org/isinfo.php) 6.6 or later (`winget install JRSoftware.InnoSetup`). `task installer-art` redraws its art (`tools/installerart`).
+Building the installer needs [Inno Setup](https://jrsoftware.org/isinfo.php) 6.7 or later (`winget install JRSoftware.InnoSetup`). `task installer-art` redraws its art (`tools/installerart`).
 
 ## Configuration
 
