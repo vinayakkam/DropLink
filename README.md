@@ -17,6 +17,8 @@
 - [Using DropLink](#using-droplink)
 - [Security](#security)
 - [Going across networks](#going-across-networks)
+- [Installing and updates](#installing-and-updates)
+- [Making a release](#making-a-release)
 - [Configuration](#configuration)
 - [Memory and speed](#memory-and-speed)
 - [Project layout](#project-layout)
@@ -69,7 +71,8 @@ Windows also needs the WebView2 runtime (part of Windows 11) and the Visual Stud
 ```
 task dev      # builds the sidecar and opens the desktop app with hot reload
 task web      # just the sidecar + UI in a browser: http://127.0.0.1:7878
-task build    # release installers (NSIS/MSI on Windows, deb/AppImage on Linux, dmg on macOS)
+task installer   # Windows: the release app + the pixel-art installer, in dist/
+task build       # Linux / macOS: deb, AppImage, dmg
 ```
 
 To try it on one machine, start two sidecars with their own data folders and open both in a browser:
@@ -116,6 +119,38 @@ DROPLINK_ICE='[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:turn.exa
 ```
 DropLink tries a direct path first and falls back to the relay only if nothing connects within 8 seconds and a TURN server is configured. The hub's `/healthz` reports counts only.
 
+## Installing and updates
+
+**Windows.** Run `droplink-<version>-windows-x64-setup.exe` from the [releases page](https://github.com/vinayakkam/DropLink/releases). The installer follows Windows' light or dark mode and shows DropLink's own pixel scene. It installs for you alone, with no administrator rights, into `%LOCALAPPDATA%\Programs\DropLink`. It registers `droplink://` links and can add a desktop shortcut and start DropLink at sign-in. Uninstalling keeps your settings, keys and trusted devices.
+
+**Updates.** At start (switch it off in CONFIG → UPDATES), DropLink reads `latest.json` from the latest GitHub release. If a newer version exists, it offers it with the release notes. DOWNLOAD & INSTALL works like this:
+1. The engine downloads the installer and keeps it only if its size, SHA-256 and **Ed25519 signature** all match the release key compiled into the app.
+2. The desktop shell runs that exact file silently and quits.
+3. The installer replaces the app and starts it again.
+
+A tampered or unsigned installer is never run, and the UI cannot point the shell at any other file. Set `DROPLINK_UPDATE_URL` to use another manifest (for a test server).
+
+**Linux / macOS.** Use the deb, AppImage or dmg from `task build`; updates come through your package manager for now.
+
+## Making a release
+
+There is no CI: releases are built and signed on the release machine.
+
+```
+go run ./tools/release keygen     # once: creates ~/.droplink/update-signing.key
+```
+`keygen` creates the release key and prints the public key, which goes into `internal/update/key.go`. **Back up the private key and never commit it**: without it, installed apps can no longer be updated.
+
+To release:
+1. Bump `version` in `desktop/src-tauri/tauri.conf.json` (also `desktop/package.json` and `Cargo.toml`).
+2. Run:
+   ```
+   task release -- "What changed, in a line or two"
+   ```
+   This builds the release app and the installer, signs the installer into `dist/latest.json`, then asks before creating the public GitHub release `v<version>` with both files. `task installer` stops after the build, and `go run ./tools/release sign` / `publish` run the later steps on their own.
+
+Building the installer needs [Inno Setup](https://jrsoftware.org/isinfo.php) 6.6 or later (`winget install JRSoftware.InnoSetup`). `task installer-art` redraws its art (`tools/installerart`).
+
 ## Configuration
 
 Sidecar flags (environment variables in brackets):
@@ -135,6 +170,7 @@ Sidecar flags (environment variables in brackets):
 | `DROPLINK_LAN_PORT` | random | fixed TCP port for LAN transfers |
 | `DROPLINK_SIGNAL_URL` | `ws://127.0.0.1:47480/ws` | signaling hub |
 | `DROPLINK_ICE` | one public STUN server | STUN/TURN servers (JSON) |
+| `DROPLINK_UPDATE_URL` | the latest GitHub release's `latest.json` | where to look for updates |
 
 ## Memory and speed
 
@@ -180,7 +216,9 @@ internal/api           HTTP routes, settings, server-sent events
 internal/server        loopback API server, token, ready line
 desktop/               Tauri 2 shell (tray, notifications, pickers, deep links)
 web/                   the pixel UI (HTML, CSS, ES modules) and its tests
-tools/                 sidecar build, icon, gofmt check, CSP check, mem
+internal/update        signed self-update (manifest, verify, download)
+packaging/windows      Inno Setup installer and its pixel art
+tools/                 sidecar build, icon, installer art, release, gofmt check, CSP check, mem
 docs/                  API, architecture, task files
 ```
 
