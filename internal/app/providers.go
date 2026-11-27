@@ -7,12 +7,11 @@
 package app
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 
 	"github.com/vinayakkam/droplink/internal/config"
 	"github.com/vinayakkam/droplink/internal/contract"
+	dlcrypto "github.com/vinayakkam/droplink/internal/crypto"
 	"github.com/vinayakkam/droplink/internal/mock"
 )
 
@@ -30,8 +29,11 @@ type Providers struct {
 
 // NewProviders builds the implementations for this run.
 func NewProviders(cfg config.Config) (*Providers, error) {
-	// p2/crypto replaces this line (load or create the identity key in cfg.DataDir).
-	var crypto contract.Crypto = mock.NewCrypto(placeholderID(cfg))
+	// p2/crypto: identity key and trust list in cfg.DataDir.
+	crypto, err := dlcrypto.Load(cfg.DataDir)
+	if err != nil {
+		return nil, err
+	}
 
 	self := contract.Peer{ID: crypto.ID(), Name: cfg.DeviceName, Route: contract.RouteLAN}
 	network := mock.NewNetwork()
@@ -60,10 +62,4 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 // Close releases the transports.
 func (p *Providers) Close() error {
 	return errors.Join(p.LAN.Close(), p.WebRTC.Close())
-}
-
-// placeholderID is stable per data dir and name until p2/crypto adds keys.
-func placeholderID(cfg config.Config) contract.DeviceID {
-	sum := sha256.Sum256([]byte(cfg.DataDir + "|" + cfg.DeviceName))
-	return contract.DeviceID(hex.EncodeToString(sum[:16]))
 }
