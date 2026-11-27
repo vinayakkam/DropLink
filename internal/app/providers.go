@@ -16,6 +16,7 @@ import (
 	"github.com/vinayakkam/droplink/internal/lan"
 	"github.com/vinayakkam/droplink/internal/mock"
 	"github.com/vinayakkam/droplink/internal/signal"
+	"github.com/vinayakkam/droplink/internal/webrtc"
 )
 
 // Providers holds one implementation of each contract interface.
@@ -39,7 +40,6 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 	}
 
 	self := contract.Peer{ID: crypto.ID(), Name: cfg.DeviceName, Route: contract.RouteLAN}
-	network := mock.NewNetwork()
 	// p2/lan-discovery: UDP beacons on the LAN.
 	disc := discovery.New(self, discovery.PortFromEnv(), discovery.Options{})
 	// p2/lan-transfer: encrypted TCP; its port goes into the beacons.
@@ -47,18 +47,23 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 	if err != nil {
 		return nil, err
 	}
-	webrtcSelf := self
-	webrtcSelf.Route = contract.RouteWebRTC
+	// p2/signaling: WebSocket hub at DROPLINK_SIGNAL_URL.
+	sig := signal.New(signal.URLFromEnv())
+	// p2/webrtc: DataChannels to room members, ICE from DROPLINK_ICE.
+	ice, err := webrtc.ICEFromEnv()
+	if err != nil {
+		lanT.Close()
+		return nil, err
+	}
+	rtc := webrtc.New(self, sig, webrtc.Options{ICEServers: ice})
 
 	p := &Providers{
 		Self:      self,
 		Crypto:    crypto,
 		Discovery: disc,
 		LAN:       lanT,
-		// p2/webrtc replaces this line.
-		WebRTC: network.Join(webrtcSelf, contract.RouteWebRTC),
-		// p2/signaling: WebSocket hub at DROPLINK_SIGNAL_URL.
-		Signaler: signal.New(signal.URLFromEnv()),
+		WebRTC:    rtc,
+		Signaler:  sig,
 		// p2/resilience replaces this line (history file in cfg.DataDir).
 		History: &mock.History{},
 	}
