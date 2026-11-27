@@ -40,6 +40,11 @@ tasks:
     cmds:
       - go run ./cmd/droplink-sidecar -web-dir web -addr 127.0.0.1:7878 -name dev-browser
 
+  mem:
+    desc: Memory used by a running DropLink (shell, sidecar, WebView)
+    cmds:
+      - go run ./tools/mem {{.CLI_ARGS}}
+
   build:
     desc: Release build and installers
     deps: [sidecar, deps]

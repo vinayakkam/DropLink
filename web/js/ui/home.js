@@ -177,6 +177,8 @@ export function mountHome(doc, store, opts = {}) {
       const sp = speeds(transfers);
       $("speed-up").textContent = `▲ ${speed(sp.up)}`;
       $("speed-down").textContent = `▼ ${speed(sp.down)}`;
+      const moving = transfers.find((t) => t.state === "active");
+      $("route-state").textContent = moving ? `ROUTE ${moving.peer?.route === "webrtc" ? "ROOM" : "LAN"}` : "ROUTE —";
       if (!transfers.length) {
         render($("transfers"), h("li", { class: "list__empty" }, "NO CARGO IN FLIGHT"));
         return;
