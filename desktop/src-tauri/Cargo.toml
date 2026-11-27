@@ -17,9 +17,11 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # System webview only (WebView2 / WebKit): no bundled Chromium.
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 # A second launch focuses the open window instead of starting a second sidecar.
 tauri-plugin-single-instance = "2"
+# Native notifications for offers and finished transfers.
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The sidecar runs as an async child process; its stdout carries the ready line.

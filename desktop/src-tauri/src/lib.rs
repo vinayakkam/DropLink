@@ -4,11 +4,13 @@
 //! networking and file transfer happens in the Go sidecar, which this shell
 //! starts on launch and stops on quit ([`sidecar`]). The UI asks for the
 //! sidecar's port and token with the `sidecar_info` command, then talks to it
-//! over HTTP on 127.0.0.1.
+//! over HTTP on 127.0.0.1. The shell adds what only a desktop app can: a
+//! tray icon and close-to-tray ([`tray`]) and native notifications.
 
 pub mod sidecar;
+pub mod tray;
 
-use tauri::{Manager, RunEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 #[tauri::command]
 fn sidecar_info(state: tauri::State<'_, sidecar::Sidecar>) -> sidecar::SidecarInfo {
@@ -28,18 +30,31 @@ pub fn run() {
         // Must come first, so a second launch is handed to this window before
         // it can start a second sidecar.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            tray::set_visible(app, true);
         }))
+        .plugin(tauri_plugin_notification::init())
         .manage(sidecar::Sidecar::default())
-        .invoke_handler(tauri::generate_handler![sidecar_info, restart_sidecar])
+        .manage(tray::Behavior::default())
+        .invoke_handler(tauri::generate_handler![
+            sidecar_info,
+            restart_sidecar,
+            tray::sync_window_settings
+        ])
         .setup(|app| {
+            tray::install(app.handle())?;
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(sidecar::launch(handle));
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                if tray::on_close(app.state::<tray::Behavior>().close_to_tray()) == tray::OnClose::Hide {
+                    // Keep receiving in the background; the tray brings it back.
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building DropLink");
