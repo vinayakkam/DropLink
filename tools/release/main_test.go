@@ -63,6 +63,35 @@ func TestVersionComesFromTauriConfig(t *testing.T) {
 	}
 }
 
+// The release workflow builds both platforms, signs with the secret key
+// and never writes the key anywhere it could be uploaded.
+func TestReleaseWorkflow(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wf := string(b)
+	for _, want := range []string{
+		"tags: [\"v*\"]",
+		"secrets.DROPLINK_UPDATE_KEY",
+		"go run ./tools/release build",
+		"go run ./tools/release sign",
+		"--bundles deb,appimage",
+		"gh release upload",
+		`rm -f "$key"`,
+	} {
+		if !strings.Contains(wf, want) {
+			t.Errorf("release.yml lost %q", want)
+		}
+	}
+	if strings.Contains(wf, "pull_request") {
+		t.Error("release.yml must not run on pull requests: they could read the signing key")
+	}
+	if !strings.Contains(wf, `key="$RUNNER_TEMP/`) {
+		t.Error("the signing key must be written under RUNNER_TEMP, outside dist/")
+	}
+}
+
 // The installer script keeps the promises the README makes.
 func TestInstallerScript(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "packaging", "windows", "droplink.iss"))
@@ -72,7 +101,8 @@ func TestInstallerScript(t *testing.T) {
 	iss := string(b)
 	for _, want := range []string{
 		"PrivilegesRequired=lowest",
-		"WizardStyle=modern dynamic",
+		"WizardStyle=modern dynamic polar",
+		"DisableWelcomePage=no",
 		"WizardBackImageFileDynamicDark=",
 		"CloseApplications=yes",
 		`Subkey: "Software\Classes\droplink"`,

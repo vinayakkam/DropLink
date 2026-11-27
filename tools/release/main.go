@@ -152,7 +152,7 @@ func iscc() (string, error) {
 	if p, err := exec.LookPath("ISCC"); err == nil {
 		return p, nil
 	}
-	return "", errors.New("inno setup 6.6+ not found (winget install JRSoftware.InnoSetup, or set ISCC)")
+	return "", errors.New("inno setup 6.7+ not found (winget install JRSoftware.InnoSetup, or set ISCC)")
 }
 
 // InstallerName is the Windows installer's file name for a version.
