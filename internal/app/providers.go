@@ -8,13 +8,16 @@ package app
 
 import (
 	"errors"
+	"io"
+	"path/filepath"
 
 	"github.com/vinayakkam/droplink/internal/config"
 	"github.com/vinayakkam/droplink/internal/contract"
 	dlcrypto "github.com/vinayakkam/droplink/internal/crypto"
 	"github.com/vinayakkam/droplink/internal/discovery"
+	"github.com/vinayakkam/droplink/internal/history"
 	"github.com/vinayakkam/droplink/internal/lan"
-	"github.com/vinayakkam/droplink/internal/mock"
+	"github.com/vinayakkam/droplink/internal/resilience"
 	"github.com/vinayakkam/droplink/internal/signal"
 	"github.com/vinayakkam/droplink/internal/webrtc"
 )
@@ -64,15 +67,21 @@ func NewProviders(cfg config.Config) (*Providers, error) {
 		LAN:       lanT,
 		WebRTC:    rtc,
 		Signaler:  sig,
-		// p2/resilience replaces this line (history file in cfg.DataDir).
-		History: &mock.History{},
+		// p2/resilience: opt-in log in cfg.DataDir (off until settings enable it).
+		History: history.New(filepath.Join(cfg.DataDir, "history.jsonl"), history.DefaultMax),
 	}
-	// p2/resilience replaces this line.
-	p.Router = &mock.Router{Transports: []contract.Transport{p.LAN, p.WebRTC}}
+	// p2/resilience: LAN when seen, else WebRTC; re-plan after network changes.
+	router := resilience.NewRouter(disc, lanT, rtc)
+	router.WatchNetwork(0, func() { disc.SetPort(lanT.Port()) }) // announce at once
+	p.Router = router
 	return p, nil
 }
 
 // Close releases the transports.
 func (p *Providers) Close() error {
-	return errors.Join(p.LAN.Close(), p.WebRTC.Close())
+	var errs []error
+	if c, ok := p.Router.(io.Closer); ok {
+		errs = append(errs, c.Close())
+	}
+	return errors.Join(append(errs, p.LAN.Close(), p.WebRTC.Close())...)
 }
