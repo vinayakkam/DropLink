@@ -59,7 +59,8 @@ type Transport struct {
 	mu       sync.Mutex
 	room     contract.Room
 	loopDone chan struct{}
-	sessions map[string]*session // setting up, by session ID
+	sessions map[string]*session  // setting up, by session ID
+	streams  map[*stream]struct{} // open, closed by Close
 
 	// accepted receives each connection the other side opened.
 	accepted func(pc *pion.PeerConnection, dc *pion.DataChannel, from contract.DeviceID)
@@ -81,6 +82,7 @@ func New(self contract.Peer, sig contract.Signaler, opts Options) *Transport {
 		opts:     opts,
 		api:      pion.NewAPI(pion.WithSettingEngine(se)),
 		sessions: map[string]*session{},
+		streams:  map[*stream]struct{}{},
 		done:     make(chan struct{}),
 	}
 	t.accepted = func(pc *pion.PeerConnection, _ *pion.DataChannel, _ contract.DeviceID) { _ = pc.Close() }
