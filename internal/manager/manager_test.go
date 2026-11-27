@@ -184,6 +184,23 @@ func TestCancelWhileWaiting(t *testing.T) {
 	}
 }
 
+// The sender cancels while the receiver's offer dialog is open: the
+// receiver's offer stops waiting and ends cancelled right away.
+func TestWaitingOfferEndsWhenSenderCancels(t *testing.T) {
+	testutil.NoLeaks(t)
+	nodes := cluster(t, "Alpha", "Beta")
+	a, b := nodes[0], nodes[1]
+	ids, _ := a.m.Send(SendRequest{Peers: []contract.DeviceID{b.peer.ID}, Text: "never mind"})
+	waitFor(t, b.ev, func(v View) bool { return v.Waiting })
+	if err := a.m.Cancel(ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	v := waitFor(t, b.ev, func(v View) bool { return !v.Waiting && v.State == contract.StateCancelled })
+	if v.State != contract.StateCancelled {
+		t.Fatalf("receiver view %+v", v)
+	}
+}
+
 func TestSendToManyPeers(t *testing.T) {
 	testutil.NoLeaks(t)
 	nodes := cluster(t, "Alpha", "Beta", "Gamma")

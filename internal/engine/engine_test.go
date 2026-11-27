@@ -214,6 +214,63 @@ func TestReject(t *testing.T) {
 	}
 }
 
+// The sender goes away while the receiver is still deciding: Receive
+// ends at once instead of waiting for an answer nobody needs.
+func TestSenderLeavesWhileDeciding(t *testing.T) {
+	for _, how := range []string{"cancel", "hang up"} {
+		t.Run(how, func(t *testing.T) {
+			testutil.NoLeaks(t)
+			e := engine.New(chunk)
+			a, b := mock.Pipe(alice, bob)
+			sctx, cancel := context.WithCancel(bg())
+			defer cancel()
+			sent := make(chan error, 1)
+			o := contract.Offer{ID: "gone", Files: []contract.FileMeta{{Path: "a", Size: 10}}}
+			go func() { sent <- e.Send(sctx, a, o, patternSrc{}, nil) }()
+			release := make(chan struct{})
+			defer close(release) // the user answers only after Receive gave up
+			start := time.Now()
+			_, err := e.Receive(bg(), b, func(contract.Offer) bool {
+				if how == "cancel" {
+					cancel()
+				} else {
+					_ = a.Close()
+				}
+				<-release
+				return true
+			}, &discardSink{}, nil)
+			if !errors.Is(err, engine.ErrCanceled) {
+				t.Fatalf("recv = %v", err)
+			}
+			if d := time.Since(start); d > 5*time.Second {
+				t.Fatalf("Receive took %v", d)
+			}
+			<-sent
+		})
+	}
+}
+
+// Accepting after the watcher began reading loses no byte of the stream.
+func TestAcceptAfterDelayKeepsStream(t *testing.T) {
+	testutil.NoLeaks(t)
+	e := engine.New(chunk)
+	a, b := mock.Pipe(alice, bob)
+	sent := make(chan error, 1)
+	o := contract.Offer{ID: "slow", Files: []contract.FileMeta{{Path: "a", Size: 3*chunk + 7}}}
+	go func() { sent <- e.Send(bg(), a, o, patternSrc{}, nil) }()
+	dst := &discardSink{}
+	_, err := e.Receive(bg(), b, func(contract.Offer) bool {
+		time.Sleep(50 * time.Millisecond)
+		return true
+	}, dst, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-sent; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestResumeSkipsStoredBytes(t *testing.T) {
 	testutil.NoLeaks(t)
 	out := t.TempDir()
