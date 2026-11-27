@@ -3,6 +3,7 @@
 // same store.
 import { api, connect } from "./api.js";
 import { reducedMotion, runBoot } from "./bootseq.js";
+import { mountScenes } from "./pixel/mount.js";
 import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
 import { showView, watchRoute } from "./views.js";
@@ -10,6 +11,10 @@ import { showView, watchRoute } from "./views.js";
 export const store = createStore({
   engine: { state: "starting", version: "", device: "", features: [] },
   route: { view: "home", query: {} },
+  peers: [],
+  selected: new Set(),
+  transfers: [],
+  dropHover: false,
 });
 
 initTitlebar(document);
@@ -28,6 +33,8 @@ store.select(
   },
 );
 
+mountScenes(document, store);
+
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });
 
@@ -37,6 +44,9 @@ try {
   store.set({ engine: { state: "online", version: info.version, device: info.device, features: info.features ?? [] } });
   await boot.finish(true, `ENGINE ONLINE · ${info.device}`);
   setTimeout(() => (bootEl.dataset.done = ""), reducedMotion() ? 0 : 350);
+  // Remove it outright once the fade is over, even if a throttled
+  // background tab never finishes the transition.
+  setTimeout(() => (bootEl.hidden = true), reducedMotion() ? 0 : 800);
 } catch (err) {
   store.set({ engine: { ...store.get().engine, state: "offline" } });
   await boot.finish(false, `ENGINE OFFLINE · ${err.message}`);
