@@ -37,7 +37,7 @@ The Go sidecar serves this API on `127.0.0.1:<port>`; the desktop shell gets the
 
 `Transfer`: `{id, peer, outgoing, state, waiting, files, names[≤3], text (received text, when done), done, total, bytesPerSec, error, sas[4], savedTo, startedAt, endedAt}`. `state` is `queued`, `offered`, `active`, `paused`, `done`, `failed`, `cancelled` or `rejected`.
 
-`Settings`: `{name, avatar 0..15, downloadDir (absolute), autoAcceptTrusted, speedLimitKBps (0 = none), volume 0..100, theme cyan|amber|magenta|light, motion, history, closeToTray}`.
+`Settings`: `{name, avatar 0..15, downloadDir (absolute), autoAcceptTrusted, speedLimitKBps (0 = none), volume 0..100, theme auto|cyan|amber|magenta|light, motion, history, closeToTray}`.
 
 ## QR and deep links (p1/desktop-integration)
 | Method | Path | Feature | Returns |

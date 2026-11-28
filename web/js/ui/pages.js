@@ -1,9 +1,10 @@
 // The ROOMS, LOG and CONFIG pages.
 import { api } from "../api.js";
 import { bytes, shortId } from "../format.js";
+import { HISTORY_FILTERS, filterHistory } from "../state.js";
 import { drawSprite, ship } from "../pixel/sprites.js";
 import { readPalette } from "../pixel/palette.js";
-import { THEMES } from "../theme.js";
+import { APPEARANCES } from "../theme.js";
 import { h, render, toast } from "./dom.js";
 
 /**
@@ -95,19 +96,30 @@ export function mountPages(doc, store, opts) {
   }
 
   // --- LOG ------------------------------------------------------------
+  let historyFilter = "all";
+  const FILTER_LABELS = { all: "ALL", sent: "SENT", received: "RECEIVED", failed: "FAILED" };
   async function loadHistory() {
     const body = doc.getElementById("history-body");
-    let recs = [];
+    let all = [];
     try {
-      recs = await api("/api/history?limit=200");
+      all = await api("/api/history?limit=200");
     } catch (err) {
       render(body, h("p", { class: "muted" }, err.message));
       return;
     }
     const on = store.get().settings?.history;
+    const recs = filterHistory(all, historyFilter);
+    const filters = all.length
+      ? h(
+          "div",
+          { class: "row", role: "radiogroup", "aria-label": "filter" },
+          ...HISTORY_FILTERS.map((f) => h("button", { class: `btn btn--sm ${f === historyFilter ? "" : "btn--ghost"}`, role: "radio", "aria-checked": String(f === historyFilter), onclick: () => ((historyFilter = f), loadHistory()) }, FILTER_LABELS[f])),
+        )
+      : null;
     render(
       body,
       on ? null : h("p", { class: "muted" }, "The flight log is off. Turn it on in CONFIG to keep a record of transfers on this device."),
+      filters,
       recs.length
         ? h(
             "ul",
@@ -122,8 +134,8 @@ export function mountPages(doc, store, opts) {
               ),
             ),
           )
-        : h("p", { class: "list__empty" }, "NO FLIGHTS LOGGED"),
-      recs.length ? h("div", null, h("button", { class: "btn btn--ghost", onclick: clearHistory }, "CLEAR LOG")) : null,
+        : h("p", { class: "list__empty" }, all.length ? "NO FLIGHTS MATCH THIS FILTER" : "NO FLIGHTS LOGGED"),
+      all.length ? h("div", null, h("button", { class: "btn btn--ghost", onclick: clearHistory }, "CLEAR LOG")) : null,
     );
   }
 
@@ -202,7 +214,7 @@ export function mountPages(doc, store, opts) {
     const themes = h(
       "div",
       { class: "row", role: "radiogroup", "aria-label": "theme" },
-      ...THEMES.map((t) => h("button", { class: `btn ${t.id === s.theme ? "" : "btn--ghost"}`, role: "radio", "aria-checked": String(t.id === s.theme), onclick: () => (save({ theme: t.id }), drawSettings({ ...s, theme: t.id })) }, t.name)),
+      ...APPEARANCES.map((t) => h("button", { class: `btn ${t.id === s.theme ? "" : "btn--ghost"}`, role: "radio", "aria-checked": String(t.id === s.theme), onclick: () => (save({ theme: t.id }), drawSettings({ ...s, theme: t.id })) }, t.name)),
     );
 
     let trusted = [];

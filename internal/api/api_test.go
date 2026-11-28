@@ -142,9 +142,11 @@ func TestSettingsRoundTripValidateAndApply(t *testing.T) {
 
 func TestLightThemeAccepted(t *testing.T) {
 	e := newEnv(t)
-	code, body := e.do(t, "PUT", "/api/settings", `{"theme":"light"}`)
-	if code != 200 || !strings.Contains(body, `"theme":"light"`) {
-		t.Fatalf("light theme: %d %s", code, body)
+	for _, theme := range []string{"light", "auto"} {
+		code, body := e.do(t, "PUT", "/api/settings", `{"theme":"`+theme+`"}`)
+		if code != 200 || !strings.Contains(body, `"theme":"`+theme+`"`) {
+			t.Fatalf("%s theme: %d %s", theme, code, body)
+		}
 	}
 }
 

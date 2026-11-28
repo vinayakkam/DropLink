@@ -9,11 +9,14 @@ import { mountScenes } from "./pixel/mount.js";
 import { createStore } from "./store.js";
 import { initTitlebar } from "./titlebar.js";
 import { createSfx } from "./sfx.js";
-import { applyAppearance } from "./theme.js";
+import { applyAppearance, watchSystemAppearance } from "./theme.js";
 import { mountHome, setPickers } from "./ui/home.js";
 import { mountPages } from "./ui/pages.js";
 import { initUpdates } from "./ui/update.js";
-import { showView, watchRoute } from "./views.js";
+import { href, showView, watchRoute } from "./views.js";
+import { SHORTCUTS, bindShortcuts } from "./shortcuts.js";
+import { h } from "./ui/dom.js";
+import { openModal } from "./ui/modal.js";
 
 export const store = createStore({
   engine: { state: "starting", version: "", device: "", features: [] },
@@ -45,6 +48,9 @@ store.select(
   },
 );
 
+// While the appearance is "auto", follow the OS light/dark switch live.
+watchSystemAppearance(() => store.get().settings);
+
 mountScenes(document, store);
 export const home = mountHome(document, store, { sfx });
 const pagesOpts = { sfx, applySettings: applyAppearance };
@@ -52,6 +58,35 @@ export const pages = mountPages(document, store, pagesOpts);
 const updates = initUpdates(store, { sfx });
 pagesOpts.checkUpdates = () => updates.check();
 const desktop = initDesktop(store, { setPickers, setCargo: home.setCargo, pagesOpts, joinRoom: (code) => pages.joinRoom(code) });
+
+// Keyboard shortcuts. A click on the matching control reuses its flow, so
+// nothing is duplicated; navigation just moves the hash.
+const go = (view) => () => (window.location.hash = href(view));
+const click = (id) => () => document.getElementById(id)?.click();
+let helpOpen = false;
+async function showHelp() {
+  if (helpOpen) return;
+  helpOpen = true;
+  await openModal({
+    title: "KEYBOARD SHORTCUTS",
+    body: [h("ul", { class: "list" }, ...SHORTCUTS.map((s) => h("li", { class: "list__item" }, h("span", { class: "tag" }, s.keys), h("span", { class: "list__title" }, s.does))))],
+    actions: [{ label: "CLOSE", value: true, primary: true }],
+    cancelValue: true,
+  });
+  helpOpen = false;
+}
+bindShortcuts(document, window, {
+  "view:home": go("home"),
+  "view:rooms": go("rooms"),
+  "view:history": go("history"),
+  "view:settings": go("settings"),
+  "pick-files": click("pick-files"),
+  "pick-folder": click("pick-folder"),
+  "send-clip": click("send-clip"),
+  "launch": click("launch"),
+  "clear": click("manifest-clear"),
+  "help": showHelp,
+});
 
 const bootEl = document.getElementById("boot");
 const boot = runBoot(document.getElementById("boot-log"), { instant: reducedMotion() });

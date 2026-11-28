@@ -92,3 +92,24 @@ export function pendingOffer(transfers) {
 export function activeCount(transfers) {
   return transfers.filter((t) => !FINISHED.has(t.state)).length;
 }
+
+/** The flight-log filters, in the order the chips show. */
+export const HISTORY_FILTERS = ["all", "sent", "received", "failed"];
+
+/**
+ * Keeps the history records a filter should show. Unknown filter → all.
+ * @param {Array<{ outgoing?: boolean, state?: string }>} recs
+ * @param {string} filter
+ */
+export function filterHistory(recs, filter) {
+  switch (filter) {
+    case "sent":
+      return recs.filter((r) => r.outgoing);
+    case "received":
+      return recs.filter((r) => !r.outgoing);
+    case "failed":
+      return recs.filter((r) => r.state === "failed" || r.state === "cancelled" || r.state === "rejected");
+    default:
+      return recs;
+  }
+}
