@@ -140,6 +140,14 @@ func TestSettingsRoundTripValidateAndApply(t *testing.T) {
 	}
 }
 
+func TestLightThemeAccepted(t *testing.T) {
+	e := newEnv(t)
+	code, body := e.do(t, "PUT", "/api/settings", `{"theme":"light"}`)
+	if code != 200 || !strings.Contains(body, `"theme":"light"`) {
+		t.Fatalf("light theme: %d %s", code, body)
+	}
+}
+
 func TestDamagedSettingsReported(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "settings.json")
 	_ = os.WriteFile(p, []byte("{"), 0o600)

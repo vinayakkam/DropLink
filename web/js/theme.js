@@ -5,6 +5,7 @@ export const THEMES = [
   { id: "cyan", name: "CYAN NEBULA" },
   { id: "amber", name: "AMBER TERMINAL" },
   { id: "magenta", name: "MAGENTA VOID" },
+  { id: "light", name: "DAYLIGHT" },
 ];
 
 /** @param {{ theme?: string, motion?: boolean }} s @param {HTMLElement} [root] */

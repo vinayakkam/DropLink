@@ -22,7 +22,7 @@ type Settings struct {
 	AutoAcceptTrusted bool   `json:"autoAcceptTrusted"`
 	SpeedLimitKBps    int    `json:"speedLimitKBps"` // 0 = no limit
 	Volume            int    `json:"volume"`         // 0..100, 0 = silent
-	Theme             string `json:"theme"`          // cyan | amber | magenta
+	Theme             string `json:"theme"`          // cyan | amber | magenta | light
 	Motion            bool   `json:"motion"`         // animations on
 	History           bool   `json:"history"`        // keep a local log
 	CloseToTray       bool   `json:"closeToTray"`
@@ -30,7 +30,7 @@ type Settings struct {
 }
 
 // Themes the UI ships.
-var Themes = []string{"cyan", "amber", "magenta"}
+var Themes = []string{"cyan", "amber", "magenta", "light"}
 
 // DefaultSettings for a device named name.
 func DefaultSettings(name string) Settings {

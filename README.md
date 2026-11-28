@@ -92,7 +92,7 @@ They find each other on the radar within two seconds. In a browser, file paths a
 
 **Rooms.** ROOMS → CREATE ROOM shows a 6-character code and a QR code. The other device joins with the code, by scanning the QR, or by opening `droplink://join/CODE`. Room members appear on the radar like LAN devices.
 
-**Settings (CONFIG).** Device name and ship, download folder, auto-accept trusted devices, speed limit, flight log (off by default; names and sizes only), three themes (Cyan Nebula, Amber Terminal, Magenta Void), animation on/off, chiptune sound volume, close to tray, and the trusted-device list.
+**Settings (CONFIG).** Device name and ship, download folder, auto-accept trusted devices, speed limit, flight log (off by default; names and sizes only), four themes (Cyan Nebula, Amber Terminal, Magenta Void and the light Daylight), animation on/off, chiptune sound volume, close to tray, and the trusted-device list.
 
 **Tray.** Show/hide, toggle auto-accept, quit. With *close to tray* on, closing the window keeps DropLink receiving; notifications announce offers and finished transfers while the window is in the background.
 

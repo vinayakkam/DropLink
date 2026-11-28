@@ -61,5 +61,11 @@ test("appearance sets theme and motion on <html>", () => {
   assert.deepEqual(root.dataset, {});
   applyAppearance({ theme: "neon" }, root);
   assert.deepEqual(root.dataset, {}, "unknown themes fall back to cyan");
-  assert.deepEqual(THEMES.map((t) => t.id), ["cyan", "amber", "magenta"]);
+  assert.deepEqual(THEMES.map((t) => t.id), ["cyan", "amber", "magenta", "light"]);
+});
+
+test("light theme is applied like any other", () => {
+  const root = { dataset: {} };
+  applyAppearance({ theme: "light" }, root);
+  assert.deepEqual(root.dataset, { theme: "light" });
 });

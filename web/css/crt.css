@@ -18,20 +18,20 @@
     to bottom,
     rgba(0, 0, 0, 0) 0,
     rgba(0, 0, 0, 0) calc(var(--px) * 1),
-    rgba(0, 0, 0, 0.18) calc(var(--px) * 1),
-    rgba(0, 0, 0, 0.18) calc(var(--px) * 2)
+    var(--scanline) calc(var(--px) * 1),
+    var(--scanline) calc(var(--px) * 2)
   );
   mix-blend-mode: multiply;
 }
 
 .crt::after {
-  /* Vignette and a faint cyan bloom from the center. */
+  /* Vignette and a faint bloom from the center. */
   content: "";
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at center, rgba(62, 242, 255, 0.045) 0%, rgba(0, 0, 0, 0) 55%),
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.55) 100%);
+    radial-gradient(ellipse at center, var(--bloom) 0%, rgba(0, 0, 0, 0) 55%),
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 60%, var(--vignette) 100%);
   animation: crt-flicker 6s steps(1) infinite;
 }
 
