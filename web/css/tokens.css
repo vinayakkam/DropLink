@@ -38,6 +38,12 @@
   --accent-dim: var(--cyan-dim);
   --accent-glow: rgba(62, 242, 255, 0.35);
 
+  /* CRT overlay and modal scrim; light themes soften them. */
+  --scanline: rgba(0, 0, 0, 0.18);
+  --bloom: rgba(62, 242, 255, 0.045);
+  --vignette: rgba(0, 0, 0, 0.55);
+  --scrim: rgba(5, 7, 13, 0.72);
+
   /* 4 px grid. */
   --s1: 4px;
   --s2: 8px;
@@ -109,4 +115,35 @@
   --accent: var(--magenta);
   --accent-dim: var(--magenta-dim);
   --accent-glow: rgba(255, 62, 165, 0.35);
+}
+
+/* Daylight: the one light theme. Bright hull plating, ink-dark signals.
+   "-dim" and "-deep" swap meaning: they sit closer to the background. */
+:root[data-theme="light"] {
+  --void: #e6edf3;
+  --void-2: #d9e3ec;
+  --panel: #f5f8fb;
+  --panel-2: #e9f0f6;
+  --panel-edge: #9fb3c6;
+  --grid: #cbd8e4;
+  --cyan: #0a7488;
+  --cyan-dim: #6fb3c1;
+  --cyan-deep: #c6e6ec;
+  --magenta: #b8165f;
+  --magenta-dim: #e7a2c2;
+  --amber: #a35f00;
+  --amber-dim: #e2c085;
+  --lime: #2b8a1e;
+  --danger: #c62828;
+  --ink: #102033;
+  --ink-dim: #46607a;
+  --ink-faint: #7f95aa;
+  --accent: var(--cyan);
+  --accent-dim: var(--cyan-dim);
+  --accent-glow: rgba(10, 116, 136, 0.22);
+  --scanline: rgba(16, 32, 51, 0.05);
+  --bloom: rgba(255, 255, 255, 0.25);
+  --vignette: rgba(16, 32, 51, 0.12);
+  --scrim: rgba(16, 32, 51, 0.45);
+  color-scheme: light;
 }

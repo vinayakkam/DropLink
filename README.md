@@ -88,11 +88,13 @@ They find each other on the radar within two seconds. In a browser, file paths a
 
 **Receive.** An offer pops up with who is sending what and **4 glyphs**. The sender's cargo log shows 4 glyphs too: if they match, accept. Tick *trust this device* to skip the question next time (when auto-accept is on). Files land in your download folder; an unfinished file is kept as `name.droplink-part` and the next transfer of it resumes. Existing files are never overwritten (`name (2).ext`).
 
-**Watch and control.** The CARGO LOG shows every transfer with a pixel progress bar, speed and ETA, and PAUSE / RESUME / ABORT. The status bar shows the route and total up/down speed. Received text gets a COPY TEXT button.
+**Watch and control.** The CARGO LOG shows every transfer with a pixel progress bar, speed and ETA, and PAUSE / RESUME / ABORT. The status bar shows the route and total up/down speed. Received text gets a COPY TEXT button. The flight LOG filters by ALL / SENT / RECEIVED / FAILED.
+
+**Keyboard.** `1`–`4` switch sections, `F` / `D` / `V` load files / a folder / the clipboard, `Enter` launches and `C` clears the loaded cargo, and `?` shows the full list. Shortcuts stay out of the way while you are typing.
 
 **Rooms.** ROOMS → CREATE ROOM shows a 6-character code and a QR code. The other device joins with the code, by scanning the QR, or by opening `droplink://join/CODE`. Room members appear on the radar like LAN devices.
 
-**Settings (CONFIG).** Device name and ship, download folder, auto-accept trusted devices, speed limit, flight log (off by default; names and sizes only), three themes (Cyan Nebula, Amber Terminal, Magenta Void), animation on/off, chiptune sound volume, close to tray, and the trusted-device list.
+**Settings (CONFIG).** Device name and ship, download folder, auto-accept trusted devices, speed limit, flight log (off by default; names and sizes only), four themes (Cyan Nebula, Amber Terminal, Magenta Void and the light Daylight) plus Auto, which follows the OS light/dark setting, animation on/off, chiptune sound volume, close to tray, and the trusted-device list.
 
 **Tray.** Show/hide, toggle auto-accept, quit. With *close to tray* on, closing the window keeps DropLink receiving; notifications announce offers and finished transfers while the window is in the background.
 

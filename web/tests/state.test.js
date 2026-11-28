@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeCount, applyEvent, pendingOffer, sortPeers, speeds, toggleSelected, upsertTransfer } from "../js/state.js";
+import { activeCount, applyEvent, filterHistory, pendingOffer, sortPeers, speeds, toggleSelected, upsertTransfer } from "../js/state.js";
 
 const base = () => ({ peers: [], transfers: [], selected: new Set(), room: null });
 
@@ -72,4 +72,18 @@ test("helpers", () => {
   assert.equal(pendingOffer(ts).id, "5", "the oldest waiting offer is shown first (list is newest first)");
   assert.equal(pendingOffer([]), null);
   assert.equal(activeCount(ts), 5);
+});
+
+test("filterHistory keeps the records a filter should show", () => {
+  const recs = [
+    { outgoing: true, state: "done" },
+    { outgoing: false, state: "done" },
+    { outgoing: true, state: "failed" },
+    { outgoing: false, state: "cancelled" },
+  ];
+  assert.equal(filterHistory(recs, "all").length, 4);
+  assert.deepEqual(filterHistory(recs, "sent").map((r) => r.state), ["done", "failed"]);
+  assert.deepEqual(filterHistory(recs, "received").map((r) => r.state), ["done", "cancelled"]);
+  assert.deepEqual(filterHistory(recs, "failed").map((r) => r.state), ["failed", "cancelled"]);
+  assert.equal(filterHistory(recs, "bogus").length, 4, "unknown filter shows all");
 });

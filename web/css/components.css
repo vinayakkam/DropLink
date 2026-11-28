@@ -100,7 +100,7 @@
   z-index: 200;
   display: grid;
   place-items: center;
-  background: rgba(5, 7, 13, 0.72);
+  background: var(--scrim);
 }
 
 .modal {

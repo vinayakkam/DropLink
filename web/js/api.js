@@ -38,7 +38,7 @@ export async function connect() {
  * @param {string} path
  * @param {{method?: string, body?: unknown, signal?: AbortSignal}} [opts]
  */
-export async function api(path, { method = "GET", body, signal } = {}) {
+export async function api(path, { method = "GET", body, signal } = {}, _retry = true) {
   const s = await connect();
   const headers = { Authorization: `Bearer ${s.token}` };
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -48,6 +48,12 @@ export async function api(path, { method = "GET", body, signal } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
     signal,
   });
+  // A restarted sidecar has a fresh token, so the cached one 401s. Forget
+  // it and try once more with a new session before giving up.
+  if (res.status === 401 && _retry) {
+    reset();
+    return api(path, { method, body, signal }, false);
+  }
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
